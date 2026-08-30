@@ -19,7 +19,7 @@ class BlockchainGUI_MINER extends JFrame {
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         this.setLocationRelativeTo(null);
 
-        balanceLabel = new JLabel("Balance: " + wallet.getBalance());
+        balanceLabel = new JLabel("Balance: " + Money.format(wallet.getBalance()));
         JButton mineBtn = new JButton("Mine Block");
         JButton txBtn = new JButton("Send Transaction");
         JButton refreshBtn = new JButton("Refresh balance");
@@ -40,10 +40,17 @@ class BlockchainGUI_MINER extends JFrame {
         txBtn.addActionListener(e -> {
             String receiver = JOptionPane.showInputDialog("Unesi adresu primatelja:");
             String amountStr = JOptionPane.showInputDialog("Unesi iznos:");
-            double amount = Double.parseDouble(amountStr);
-            //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + "")); ovo sada više ne treba to se radi u Wallet klasi
-            Transactions tx = wallet.createTransaction(receiver, amount);
-            blockchain.addPendingTransaction(tx);
+            try {
+                long amount = Money.fromCoins(amountStr);
+                if(amount < Money.MIN_TRANSACTION_AMOUNT) {
+                    throw new IllegalArgumentException("Iznos je premalen.");
+                }
+                //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + "")); ovo sada više ne treba to se radi u Wallet klasi
+                Transactions tx = wallet.createTransaction(receiver, amount);
+                blockchain.addPendingTransaction(tx);
+            } catch (IllegalArgumentException | ArithmeticException exception) {
+                JOptionPane.showMessageDialog(this, "Neispravan iznos.");
+            }
 
             this.updateUI();
         });
@@ -73,7 +80,7 @@ class BlockchainGUI_MINER extends JFrame {
     }
 
     private void updateUI() {
-        balanceLabel.setText("Balance: " + wallet.getBalance());
+        balanceLabel.setText("Balance: " + Money.format(wallet.getBalance()));
         chainArea.setText(blockchain.toString());
     }
 }

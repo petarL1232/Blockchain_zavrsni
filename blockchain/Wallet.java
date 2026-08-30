@@ -34,15 +34,15 @@ public class Wallet {
     // raditi iste stvari
     // naravno to blockchain mora potvrditi prije svega tako da je ovo samo tehnička
     // stvar da ne moram mjenjati cijeli kod dodavanjem privatewalleta/publicwalleta
-    public double getBalance() {
+    public long getBalance() {
         return publicWallet.getBalance();
     }
 
-    public void increaseBalance(double amount) {
+    public void increaseBalance(long amount) {
         publicWallet.increaseBalance(amount);
     }
 
-    public void decreaseBalance(double amount) {
+    public void decreaseBalance(long amount) {
         publicWallet.decreaseBalance(amount);
     }
 
@@ -75,7 +75,7 @@ public class Wallet {
         return Cryptography.publicKeyToString(publicKey);
     }
 
-    public Transactions createTransaction(String receiver, double amount) {
+    public Transactions createTransaction(String receiver, long amount) {
         String publicKeyString = getPublicKeyString();
         String data = Transactions.buildSigningData(address,publicKeyString,receiver,amount);
         String signature = signData(data);

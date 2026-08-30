@@ -20,11 +20,11 @@ public class BlockchainGUI extends JFrame implements KonstanteZaGUI {
         blockchain.registerWallet();
         blockchain.registerWallet();
 
-        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(0), 500);
-        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(2), 200);
-        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(4), 100);
-        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(5), 2000);
-        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(6), 1000);
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(0), Money.coins(500));
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(2), Money.coins(200));
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(4), Money.coins(100));
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(5), Money.coins(2000));
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(6), Money.coins(1000));
 
         Computer c1_System_vise_nije_xD = new Computer(Computer.NodeType.FULL, blockchain.getAdreseWalleta().get(0),blockchain);
         Computer c2_Alice = new Computer(Computer.NodeType.MINER, blockchain.getAdreseWalleta().get(1), blockchain);

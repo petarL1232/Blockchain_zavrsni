@@ -2,12 +2,12 @@ public class PublicWallet {
     
     private String address;
     private String publicKey;
-    private double balance;
+    private long balance;
 
     PublicWallet(String address, String publicKey) {
         this.address = address;
         this.publicKey = publicKey;
-        this.balance = 0.0;
+        this.balance = 0L;
     }
 
     public String getAddress() {
@@ -18,16 +18,16 @@ public class PublicWallet {
         return publicKey;
     }
 
-    public synchronized double getBalance() {
+    public synchronized long getBalance() {
         return balance;
     }
 
-    public synchronized void increaseBalance(double amount) {
-        balance = balance + amount;
+    public synchronized void increaseBalance(long amount) {
+        balance = Math.addExact(balance, amount);
     }
 
-    public synchronized void decreaseBalance(double amount) {
-        balance = balance - amount;
+    public synchronized void decreaseBalance(long amount) {
+        balance = Math.subtractExact(balance, amount);
     }
 
 

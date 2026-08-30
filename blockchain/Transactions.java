@@ -5,7 +5,7 @@ import java.util.Base64;
 public class Transactions {
     private String sender; // adresa
     private String receiver; // adresa
-    private double amount;
+    private long amount;
     private String signature; // digitalni potpis u Base64
     private boolean isValid;
     private String senderPublicKey;
@@ -17,7 +17,7 @@ public class Transactions {
 
     private TransactionType type;
 
-    public Transactions(String sender, String senderPublicKey, String receiver, double amount, String signature) {
+    public Transactions(String sender, String senderPublicKey, String receiver, long amount, String signature) {
         this.sender = sender;
         this.receiver = receiver;
         this.amount = amount;
@@ -28,7 +28,7 @@ public class Transactions {
 
     }
 
-    private Transactions(String receiver, double amount) {
+    private Transactions(String receiver, long amount) {
         this.sender = "COINBASE";
         this.receiver = receiver;
         this.amount = amount;
@@ -37,7 +37,7 @@ public class Transactions {
         this.type = TransactionType.SYSTEM;
         this.senderPublicKey = null; // nije potrebno to je system to ce svi potvrditi i sloziti se da zaslužuje nagradu osoba koja iskopa hopefully xD
     }
-    public static Transactions createSystemTransaction(String receiver, double amount) {
+    public static Transactions createSystemTransaction(String receiver, long amount) {
         return new Transactions(receiver, amount);
     }
 
@@ -54,7 +54,7 @@ public class Transactions {
         return receiver;
     }
 
-    public double getAmount() {
+    public long getAmount() {
         return amount;
     }
 
@@ -108,7 +108,7 @@ public class Transactions {
         return Cryptography.applySHA256(data);
     }
 
-    public static String buildSigningData(String sender, String senderPublicKey,String receiver, double amount) {
+    public static String buildSigningData(String sender, String senderPublicKey,String receiver, long amount) {
         return sender + senderPublicKey + receiver + amount;
     }
     public String getSigningData() {

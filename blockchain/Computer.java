@@ -14,7 +14,7 @@ public class Computer implements Runnable {
     private NodeType uloga;
     private String address;
     private BlockChain blockchain;
-    public boolean running = true;
+    public volatile boolean running = true;
 
     public Computer(NodeType uloga, String address, BlockChain blockchain) {
         this.uloga = uloga;
@@ -124,7 +124,7 @@ public class Computer implements Runnable {
                 System.out.println("Posiljatelj nema dovoljno sredstava: " + tx.getSender());
                 return false;
             }
-            if(tx.getAmount() < 0.0001) {
+            if(tx.getAmount() < Money.MIN_TRANSACTION_AMOUNT) {
                 System.out.println("Posiljatelj upisao negativan ili nedovoljan iznos: " + tx.getSender());
                 return false;
             }
@@ -150,7 +150,7 @@ public class Computer implements Runnable {
                 System.out.println("Nepoznata adresa: " + tx.getSender());
                 return false;
             }
-            if(tx.getAmount() < 0.0001) {
+            if(tx.getAmount() < Money.MIN_TRANSACTION_AMOUNT) {
                 System.out.println("Posiljatelj upisao negativan ili nedovoljan iznos: " + tx.getSender());
                 return false;
             }
