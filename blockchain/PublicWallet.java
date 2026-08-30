@@ -18,15 +18,15 @@ public class PublicWallet {
         return publicKey;
     }
 
-    public double getBalance() {
+    public synchronized double getBalance() {
         return balance;
     }
 
-    public void increaseBalance(double amount) {
+    public synchronized void increaseBalance(double amount) {
         balance = balance + amount;
     }
 
-    public void decreaseBalance(double amount) {
+    public synchronized void decreaseBalance(double amount) {
         balance = balance - amount;
     }
 

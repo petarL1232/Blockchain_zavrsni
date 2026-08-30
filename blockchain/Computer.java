@@ -29,7 +29,7 @@ public class Computer implements Runnable {
                 switch (uloga) {
                     case MINER:
                         if (blockchain.hasPendingTransactions()) {
-                            System.out.println("[" + address + "] is mining a new block");
+                            System.out.println("[" + address + "] is waiting for mining round puff");
                             blockchain.minePendingTransactions(address); // metoda koja mine i dodaje blok
                         } else {
                             System.out.println("[" + address + "] no transactions/blocks to mine, Im waiting ):");

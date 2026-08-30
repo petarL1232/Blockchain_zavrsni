@@ -3,6 +3,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class BlockChain {
     private ArrayList<Block> chain;
@@ -15,12 +16,18 @@ public class BlockChain {
 
     private ArrayList<String> adresa_walleta; // samo poslagane adrese iz prethodne mape da se zna tko je prvi
     private List<Transactions> transactionPool;
-    private List<Transactions> currentMiningBatch;
+    // private List<Transactions> currentMiningBatch; nije thread safe pa ne
+    // koristimo vise
 
     public int difficulty;
-    public boolean miningInProgress;
-    private long lastMineTime = 0;
+    // public boolean miningInProgress; nije thread safe pa ne koristimo vise
+    // private long lastMineTime = 0; nije thread safe pa ne koristimo vise
     // private Wallet systemWallet;
+    // dvije varijabe za thread-safety
+    private final Object transactionPoolLock = new Object(); // thre3adovi nece moci istovremeno promjeniti
+                                                             // transactionPool
+    private final AtomicInteger activeMiners = new AtomicInteger(0); // Integer koji se safely mijenja između više
+                                                                     // threadova
 
     private static final int GENESIS_INDEX = 0;
     private static final String GENESIS_PREVIOUS_HASH = "0";
@@ -37,8 +44,6 @@ public class BlockChain {
         publicWalletRegistry = new HashMap<>();
         transactionPool = new ArrayList<>();
         adresa_walleta = new ArrayList<>();
-        currentMiningBatch = new ArrayList<>();
-        miningInProgress = false;
 
         privateWalletRegistry = new HashMap<>(); // ovo se treba pobrinuti da nema nitko pristup u metodama koje će se
                                                  // pozivati
@@ -74,14 +79,10 @@ public class BlockChain {
         return genesisBlock;
     }
 
-    public Block getLatestBlock() {
-        return chain.get(chain.size() - 1);
-    }
-
-    public void addBlock(Block newBlock) {
+    private void addBlock(Block newBlock) {
         if (isBlockValid(newBlock)) {
-            newBlock.setPreviousHash(getLatestBlock().hash);
-            newBlock.calculateBlockHash();
+            // newBlock.setPreviousHash(getLatestBlock().hash);
+            // newBlock.calculateBlockHash();
             chain.add(newBlock);
 
             // i sada treba još sve AŽURIRATI oduzeti i dodati money
@@ -113,6 +114,29 @@ public class BlockChain {
         } else {
             System.out.println("Block ne valja!");
         }
+    }
+
+    private synchronized boolean tryAddMinedBlock(Block newBlock, String parentHash, int miningDifficulty,
+            List<Transactions> miningBatch) {
+        // Netko je već dodao blok na parent na kojem je rudarenje započelo
+        if (!getLatestBlock().hash.equals(parentHash)) {
+            return false;
+        }
+        // Difficulty je promijenjen dok je miner rudario
+        if (difficulty != miningDifficulty) {
+            return false;
+        }
+        int previousChainSize = chain.size();
+        addBlock(newBlock);
+        // addBlock nije prihvatio blok
+        if (chain.size() == previousChainSize) {
+            return false;
+        }
+        // Samo pobjednik uklanja transakcije iz poola
+        synchronized (transactionPoolLock) {
+            transactionPool.removeAll(miningBatch);
+        }
+        return true;
     }
 
     private double calculate_fee(double amount) {
@@ -163,7 +187,7 @@ public class BlockChain {
          */
     }
 
-    public void addInitialBalance(String address, double amount) { // nova metoda da se dodaje money
+    public synchronized void addInitialBalance(String address, double amount) { // nova metoda da se dodaje money
         if (chain.size() != 1) {
             throw new IllegalStateException("Pocetni balance moze se dodati samo prije prvog izrudarenog bloka.");
         }
@@ -187,7 +211,7 @@ public class BlockChain {
         }
     }
 
-    public Wallet registerWallet() {
+    public synchronized Wallet registerWallet() {
         Wallet wallet = new Wallet();
         privateWalletRegistry.put(wallet.getAddress(), wallet);
         publicWalletRegistry.put(wallet.getAddress(), wallet.getPublicWallet());
@@ -344,13 +368,13 @@ public class BlockChain {
 
     // promjeniti cijelu ovu metodu kasnije
 
-    public boolean isChainValid() {
+    public synchronized boolean isChainValid() {
         Map<String, Double> replayBalances = new HashMap<>(initialBalances);
         String target = "0".repeat(difficulty);
 
         for (int i = 0; i < chain.size(); i++) {
             Block current = chain.get(i);
-            //provjerava odgovara li index
+            // provjerava odgovara li index
             if (current.index != i) {
                 System.out.println("Index bloka " + i + " nije valjan.");
                 return false;
@@ -381,7 +405,7 @@ public class BlockChain {
             }
 
             Block previous = chain.get(i - 1);
-            //provjerava se je li ovo povezani lanac uopće
+            // provjerava se je li ovo povezani lanac uopće
             if (!current.previousHash.equals(previous.hash)) {
                 System.out.println("Previous hash bloka " + i + " nije valjan.");
                 return false;
@@ -403,7 +427,8 @@ public class BlockChain {
             String address = entry.getKey();
             double actualBalance = entry.getValue().getBalance();
             double replayBalance = replayBalances.getOrDefault(address, 0.0);
-            if (Math.abs(actualBalance - replayBalance) > 0.000000001) { // ovo ce se maknuti kada preciznost bude veća jer double nije siguran
+            if (Math.abs(actualBalance - replayBalance) > 0.000000001) { // ovo ce se maknuti kada preciznost bude veća
+                                                                         // jer double nije siguran
                 System.out.println("Balance se ne podudara za adresu: " + address);
                 return false;
             }
@@ -411,11 +436,11 @@ public class BlockChain {
         return true;
     }
 
-    public ArrayList<Block> getChain() {
-        return chain;
+    public synchronized ArrayList<Block> getChain() {
+        return new ArrayList<>(chain);
     }
 
-    public void addValidatorNode(Computer validatorNode) {
+    public synchronized void addValidatorNode(Computer validatorNode) {
         validatorNodes.add(validatorNode);
     }
 
@@ -423,11 +448,11 @@ public class BlockChain {
         return validatorNodes;
     }
 
-    public void setDifficulty(int difficulty) {
+    public synchronized void setDifficulty(int difficulty) {
         this.difficulty = difficulty;
     }
 
-    public int getDifficulty() {
+    public synchronized int getDifficulty() {
         return this.difficulty;
     }
 
@@ -439,102 +464,155 @@ public class BlockChain {
     }
 
     public boolean hasPendingTransactions() {
-        return !transactionPool.isEmpty();
+        synchronized (transactionPoolLock) {
+            return !transactionPool.isEmpty();
+        }
     }
 
     public boolean IsMiningInProgress() {
-        return miningInProgress;
+        return activeMiners.get() > 0;
+    }
+
+    public void addPendingTransaction(Transactions tx) {
+        synchronized (transactionPoolLock) {
+            System.out.println("dodana transakcija");
+            transactionPool.add(tx);
+        }
+    }
+
+    public synchronized Block getLatestBlock() {
+        return chain.get(chain.size() - 1);
     }
 
     // ideja je da se kopa koliko god treba, a da se prije rudarenja čeka 30 sekundi
     // da ljudi pošalju svoje transakcije
     public void minePendingTransactions(String minerAddress) {
-        long currentTime = System.currentTimeMillis();
 
-        if (currentTime - lastMineTime < 30000) { // 30 sekundi = 30000 ms
-            long remaining = (30000 - (currentTime - lastMineTime)) / 1000;
-            System.out.println("Jos " + remaining + " sekundi do iduceg rudarenja.");
-            return; // prekidamo rudarenje jer još nije vrijeme
-        }
+        activeMiners.incrementAndGet();
 
-        lastMineTime = currentTime; // postavljamo vrijeme rudarenja
-        miningInProgress = true;
+        try {
+            List<Transactions> miningBatch;
+            ArrayList<Transactions> approvedTransactions = new ArrayList<>();
 
-        currentMiningBatch = new ArrayList<>(transactionPool);
+            String parentHash;
+            int nextBlockIndex;
+            int miningDifficulty;
 
-        // ovo je staro dok je postojao system wallet
-        /*
-         * Transactions rewardTx = new Transactions(
-         * getSystemWallet().getAddress(),
-         * minerAddress,
-         * 10.0,
-         * getSystemWallet()
-         * .signData(getSystemWallet().getAddress() + minerAddress + "10.0")); // 10 BTC
-         * nagrada ako se
-         * // uspješno majna
-         * 
-         * // addPendingTransaction(rewardTx);
-         * currentMiningBatch.add(rewardTx);
-         * 
-         * getWalletRegistry().get(adresa_walleta.get(0))
-         * .signData(adresa_walleta.get(0) + minerAddress + "10.0");
-         */
+            /*
+             * Ovo je samo kratko zakljucavanje tijekom stvaranja
+             * kandidata. Sam PoW se ne izvodi unutar synchronized dijela.
+             */
+            synchronized (this) {
+                Block parentBlock = getLatestBlock();
 
-        // prije nego se napravi block izbacujemo sve transakcije koje su nepotvrđene
-        ArrayList<Transactions> approvedTransactions = new ArrayList<>();
-        ArrayList<Transactions> unapprovedTransactions = new ArrayList<>();
-        Map<String, Double> temporaryBalances = createBalanceSnapshot();
-        // majnera cemo isto spriječiti za sada da uopće iskopa nešto što ne valja jer
-        // je njegov posao onda besmislen ovo ne mora biti, ali je efikasniji algoritam
-        for (Transactions tx : currentMiningBatch) {
+                parentHash = parentBlock.hash;
+                nextBlockIndex = parentBlock.index + 1;
+                miningDifficulty = difficulty;
 
-            if (isTransactionApproved_Full(tx) && applyTransactionToTemporaryBalances(tx, temporaryBalances)) {
-                approvedTransactions.add(tx);
-            } else {
-                unapprovedTransactions.add(tx);
-                System.out.println(" Transakcija odbijena: " + tx.getSender() + " -> " + tx.getReceiver() + " ("
-                        + tx.getAmount() + ")");
+                /*
+                 * Svaki miner dobiva vlastitu kopiju trenutnog poola.
+                 */
+                synchronized (transactionPoolLock) {
+                    if (transactionPool.isEmpty()) {
+                        return;
+                    }
+
+                    miningBatch = new ArrayList<>(transactionPool);
+                }
+
+                Map<String, Double> temporaryBalances = createBalanceSnapshot();
+
+                for (Transactions tx : miningBatch) {
+                    if (isTransactionApproved_Full(tx)
+                            && applyTransactionToTemporaryBalances(
+                                    tx,
+                                    temporaryBalances)) {
+
+                        approvedTransactions.add(tx);
+
+                    } else {
+                        System.out.println(
+                                "Transakcija odbijena: "
+                                        + tx.getSender() + " -> "
+                                        + tx.getReceiver() + " ("
+                                        + tx.getAmount() + ")");
+                    }
+                }
             }
-        }
 
-        Transactions rewardTx = Transactions.createSystemTransaction(minerAddress, MINING_REWARD);
+            Transactions rewardTx = Transactions.createSystemTransaction(
+                    minerAddress,
+                    MINING_REWARD);
 
-        approvedTransactions.add(0, rewardTx);
+            approvedTransactions.add(0, rewardTx);
 
-        Block newBlock = new Block(getLatestBlock().index + 1, getLatestBlock().hash,
-                System.currentTimeMillis(),
-                approvedTransactions, 0);
+            Block newBlock = new Block(
+                    nextBlockIndex,
+                    parentHash,
+                    System.currentTimeMillis(),
+                    approvedTransactions,
+                    0);
 
-        newBlock.mineBlock(difficulty);
+            /*
+             * Nema synchronized:
+             * svi mineri ovdje rudare istovremeno.
+             */
+            newBlock.mineBlock(miningDifficulty);
 
-        if (isBlockValid(newBlock)) {
-            addBlock(newBlock);
-            System.out.println("Blok iskopan on ga iskopao: " + minerAddress);
+            /*
+             * Tek nakon pronalaska noncea miner pokusava
+             * atomski dodati svoj blok.
+             */
+            boolean minerWon = tryAddMinedBlock(
+                    newBlock,
+                    parentHash,
+                    miningDifficulty,
+                    miningBatch);
+
+            if (!minerWon) {
+                System.out.println(
+                        "Miner " + minerAddress
+                                + " je izgubio utrku. "
+                                + "Njegov blok je zastario.");
+                return;
+            }
+
+            System.out.println(
+                    "Blok je iskopao miner: " + minerAddress);
 
             int indexTx = 0;
-            for (Transactions tx : approvedTransactions) {
-                MerkleTree mt = new MerkleTree();
-                if (!isTransactionApproved_Light(tx, newBlock,
-                        mt.getMerkleProof(newBlock.getTransactionsToStringHashs(), indexTx), indexTx)) {
 
-                    System.out.println("Light nodovi odbacili transakciju: " + tx.getSender() +
-                            " -> " + tx.getReceiver() + " (" + tx.getAmount() + ")");
+            for (Transactions tx : approvedTransactions) {
+                MerkleTree merkleTree = new MerkleTree();
+
+                boolean lightNodeApproved = isTransactionApproved_Light(
+                        tx,
+                        newBlock,
+                        merkleTree.getMerkleProof(
+                                newBlock.getTransactionsToStringHashs(),
+                                indexTx),
+                        indexTx);
+
+                if (lightNodeApproved) {
+                    System.out.println(
+                            "Light nodovi prihvatili transakciju: "
+                                    + tx.getSender() + " -> "
+                                    + tx.getReceiver() + " ("
+                                    + tx.getAmount() + ")");
                 } else {
-                    System.out.println("Light nodovi prihvatili transakciju: " + tx.getSender() +
-                            " -> " + tx.getReceiver() + " (" + tx.getAmount() + ")");
+                    System.out.println(
+                            "Light nodovi odbacili transakciju: "
+                                    + tx.getSender() + " -> "
+                                    + tx.getReceiver() + " ("
+                                    + tx.getAmount() + ")");
                 }
+
                 indexTx++;
             }
 
-            // isprazni pending transakcije
-            transactionPool.removeAll(currentMiningBatch);
-            transactionPool.removeAll(unapprovedTransactions);
-            currentMiningBatch.clear();
-            miningInProgress = false;
-        } else {
-            System.out.println("Block nije validan");
+        } finally {
+            activeMiners.decrementAndGet();
         }
-        transactionPool.removeAll(unapprovedTransactions);
     }
 
     private boolean isTransactionApproved_Full(Transactions tx) {
@@ -579,11 +657,6 @@ public class BlockChain {
 
         // mora biti >= 2/3 validatora
         return approvals >= Math.ceil(ukupno * (2.0 / 3.0));
-    }
-
-    public void addPendingTransaction(Transactions tx) {
-        System.out.println("dodana transakcija");
-        transactionPool.add(tx);
     }
 
     public void printBlockchain() {

@@ -20,27 +20,19 @@ public class BlockchainGUI extends JFrame implements KonstanteZaGUI {
         blockchain.registerWallet();
         blockchain.registerWallet();
 
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(0)).increaseBalance(500); // sender
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(1)); // primač
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(2)).increaseBalance(200);
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(3));
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(4)).increaseBalance(100);
-        ;
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(5)).increaseBalance(2000);
-        ;
-        blockchain.getPublicWalletRegistry().get(blockchain.getAdreseWalleta().get(6)).increaseBalance(1000);
-        ;
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(0), 500);
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(2), 200);
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(4), 100);
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(5), 2000);
+        blockchain.addInitialBalance(blockchain.getAdreseWalleta().get(6), 1000);
 
-        Computer c1_System_vise_nije_xD = new Computer(Computer.NodeType.FULL, blockchain.getAdreseWalleta().get(0),
-                blockchain);
+        Computer c1_System_vise_nije_xD = new Computer(Computer.NodeType.FULL, blockchain.getAdreseWalleta().get(0),blockchain);
         Computer c2_Alice = new Computer(Computer.NodeType.MINER, blockchain.getAdreseWalleta().get(1), blockchain);
         Computer c3_Bob = new Computer(Computer.NodeType.FULL, blockchain.getAdreseWalleta().get(2), blockchain);
         Computer c4_Oliver = new Computer(Computer.NodeType.FULL, blockchain.getAdreseWalleta().get(3), blockchain);
         Computer c5_JA = new Computer(Computer.NodeType.MINER, blockchain.getAdreseWalleta().get(4), blockchain);
-        Computer c6_samo_za_test_light_node = new Computer(Computer.NodeType.LIGHT,
-                blockchain.getAdreseWalleta().get(5), blockchain);
-        Computer c7_samo_za_test_light_node = new Computer(Computer.NodeType.LIGHT,
-                blockchain.getAdreseWalleta().get(6), blockchain);
+        Computer c6_samo_za_test_light_node = new Computer(Computer.NodeType.LIGHT,blockchain.getAdreseWalleta().get(5), blockchain);
+        Computer c7_samo_za_test_light_node = new Computer(Computer.NodeType.LIGHT,blockchain.getAdreseWalleta().get(6), blockchain);
 
         blockchain.addValidatorNode(c2_Alice);
         blockchain.addValidatorNode(c3_Bob);
