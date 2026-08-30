@@ -7,14 +7,26 @@ import java.util.Map;
 public class BlockChain {
     private ArrayList<Block> chain;
     private ArrayList<Computer> validatorNodes;
-    private Map<String, Wallet> walletRegistry; // adresa i wallet par
+
+    private Map<String, PublicWallet> publicWalletRegistry; // adresa i wallet par
+    private Map<String, Wallet> privateWalletRegistry;
+    private Map<String, Double> initialBalances; // služi samo da se može potvrditi da je cijeli lanac valjan (teoretski
+                                                 // nebitno na blockchain)
+
     private ArrayList<String> adresa_walleta; // samo poslagane adrese iz prethodne mape da se zna tko je prvi
     private List<Transactions> transactionPool;
     private List<Transactions> currentMiningBatch;
+
     public int difficulty;
     public boolean miningInProgress;
     private long lastMineTime = 0;
-    private Wallet systemWallet;
+    // private Wallet systemWallet;
+
+    private static final int GENESIS_INDEX = 0;
+    private static final String GENESIS_PREVIOUS_HASH = "0";
+    private static final long GENESIS_TIMESTAMP = 0L;
+    private static final int GENESIS_NONCE = 0;
+    private static final double MINING_REWARD = 10.0;
 
     public BlockChain() {
         this.chain = new ArrayList<>();
@@ -22,30 +34,43 @@ public class BlockChain {
         chain.add(createGenesisBlock());
         validatorNodes = new ArrayList<>();
         this.difficulty = 4;
-        walletRegistry = new HashMap<>();
+        publicWalletRegistry = new HashMap<>();
         transactionPool = new ArrayList<>();
         adresa_walleta = new ArrayList<>();
         currentMiningBatch = new ArrayList<>();
         miningInProgress = false;
 
-        systemWallet = new Wallet();
-        walletRegistry.put(systemWallet.getAddress(), systemWallet);
-        adresa_walleta.add(systemWallet.getAddress());
-        systemWallet.increaseBalance(1000000);
-        System.out.println("System wallet kreiran: " + systemWallet.getAddress());
+        privateWalletRegistry = new HashMap<>(); // ovo se treba pobrinuti da nema nitko pristup u metodama koje će se
+                                                 // pozivati
+        initialBalances = new HashMap<>();
+
+        /*
+         * systemWallet = new Wallet();
+         * walletRegistry.put(systemWallet.getAddress(), systemWallet);
+         * adresa_walleta.add(systemWallet.getAddress());
+         * systemWallet.increaseBalance(1000000);
+         * System.out.println("System wallet kreiran: " + systemWallet.getAddress());
+         */
     }
 
-    public Wallet getSystemWallet() {
-        return systemWallet;
-    }
+    /*
+     * public Wallet getSystemWallet() {
+     * return systemWallet;
+     * }
+     */
 
     public ArrayList<String> getAdreseWalleta() {
         return adresa_walleta;
     }
 
+    public Map<String, Wallet> getPrivateWalletRegistry() {
+        return privateWalletRegistry;
+    }
+
     private Block createGenesisBlock() {
         List<Transactions> prvaTransakcija = new ArrayList<>();
-        Block genesisBlock = new Block(0, "0", System.currentTimeMillis(), prvaTransakcija, 0);
+        Block genesisBlock = new Block(GENESIS_INDEX, GENESIS_PREVIOUS_HASH, GENESIS_TIMESTAMP, prvaTransakcija,
+                GENESIS_NONCE);
         return genesisBlock;
     }
 
@@ -63,8 +88,12 @@ public class BlockChain {
             // sada smo sigurni da nitko ne krade money
 
             for (Transactions tx : newBlock.getTransactions()) {
-                Wallet senderWallet = walletRegistry.get(tx.getSender());
-                Wallet receiverWallet = walletRegistry.get(tx.getReceiver());
+                PublicWallet receiverWallet = publicWalletRegistry.get(tx.getReceiver());
+                if (tx.isSystemTransaction()) {
+                    receiverWallet.increaseBalance(tx.getAmount());
+                    continue;
+                }
+                PublicWallet senderWallet = publicWalletRegistry.get(tx.getSender());
 
                 if (senderWallet != null) {
                     double fee = calculate_fee(tx.getAmount());
@@ -72,7 +101,7 @@ public class BlockChain {
                     for (Computer c : validatorNodes) {
                         if (validatorNodes.size() != 0) {
                             double fee_per_computer = fee / validatorNodes.size();
-                            Wallet recWallet = walletRegistry.get(c.getAddress());
+                            PublicWallet recWallet = publicWalletRegistry.get(c.getAddress());
                             recWallet.increaseBalance(fee_per_computer);
                         }
                     }
@@ -91,27 +120,34 @@ public class BlockChain {
     }
 
     private boolean isBlockValid(Block newBlock) {
-        // 4 provjere radimo
+        // 5 provjera radimo
 
-        // je li ulančano uopće
+        // 1. je li ulančano uopće
         if (!newBlock.previousHash.equals(getLatestBlock().hash)) {
             System.out.println("nije ulančano");
             return false;
         }
 
-        // je li osoba izračunala dobro hash ili je dala neki random sa puno nula
+        // 2. je li merkle root dobar
+        String calculatedMerkleRoot = newBlock.calculateMerkleRoot();
+        if (!calculatedMerkleRoot.equals(newBlock.getMerkleRoot())) {
+            System.out.println("Merkle root ne odgovara transakcijama u bloku.");
+            return false;
+        }
+
+        // 3. je li osoba izračunala dobro hash ili je dala neki random sa puno nula
         if (!newBlock.calculateBlockHash().equals(newBlock.hash)) {
             System.out.println("random hash");
             return false;
         }
 
-        // 3. provjera PoW (laže li o broju nula)
+        // 4. provjera PoW (laže li o broju nula)
         String target = new String(new char[difficulty]).replace('\0', '0');
         if (!newBlock.hash.substring(0, difficulty).equals(target)) {
             System.out.println("nije pow");
             return false;
         }
-        // 4. Provjera jesu li transakcije dobre po zadnji puta.
+        // 5. Provjera jesu li transakcije dobre po zadnji puta.
         if (!transactionsCheck(newBlock)) {
             System.out.println("transakcije ne valjaju ipak ):");
             return false;
@@ -127,65 +163,248 @@ public class BlockChain {
          */
     }
 
+    public void addInitialBalance(String address, double amount) { // nova metoda da se dodaje money
+        if (chain.size() != 1) {
+            throw new IllegalStateException("Pocetni balance moze se dodati samo prije prvog izrudarenog bloka.");
+        }
+        if (amount < 0.0) {
+            throw new IllegalArgumentException("Pocetni balance ne smije biti negativan.");
+        }
+
+        PublicWallet wallet = publicWalletRegistry.get(address);
+
+        if (wallet == null) {
+            throw new IllegalArgumentException("Wallet s ovom adresom ne postoji.");
+        }
+
+        wallet.increaseBalance(amount);
+
+        if (initialBalances.containsKey(address)) { // ovaj dio je malo zeznuti i fixat cemo ga kada budemo ovo
+                                                    // prebacivali u BigDecimal i BigInteger e
+            initialBalances.put(address, initialBalances.get(address) + amount);
+        } else {
+            initialBalances.put(address, amount);
+        }
+    }
+
     public Wallet registerWallet() {
-        // na indexu 0 je system
         Wallet wallet = new Wallet();
-        walletRegistry.put(wallet.getAddress(), wallet);
+        privateWalletRegistry.put(wallet.getAddress(), wallet);
+        publicWalletRegistry.put(wallet.getAddress(), wallet.getPublicWallet());
+        initialBalances.put(wallet.getAddress(), 0.0);
         System.out.println("Novi wallet registriran: " + wallet.getAddress());
         adresa_walleta.add(wallet.getAddress());
+
         return wallet;
     }
 
-    public Map<String, Wallet> getWalletRegistry() {
-        return walletRegistry;
+    public Map<String, PublicWallet> getPublicWalletRegistry() {
+        return publicWalletRegistry;
     }
 
-    private boolean transactionsCheck(Block newBlock) { // provjerava se jesu li transakcije dobro odrađene u ovome
-                                                        // blocku prije nego što se izloži za mine
-        for (Transactions tx : newBlock.getTransactions()) {
-            Wallet senderWallet = walletRegistry.get(tx.getSender());
+    private Map<String, Double> createBalanceSnapshot() {
+        Map<String, Double> temporaryBalances = new HashMap<>();
 
+        for (Map.Entry<String, PublicWallet> entry : publicWalletRegistry.entrySet())
+            temporaryBalances.put(entry.getKey(), entry.getValue().getBalance());
+
+        return temporaryBalances;
+    }
+
+    // služi da bismo mogli razmjeniti novce na siguran način preventira double
+    // spend puff
+    // vraca true ako transakciju treba dodati u pool, a inače vraća false
+    private boolean applyTransactionToTemporaryBalances(Transactions tx, Map<String, Double> temporaryBalances) {
+
+        if (tx.isSystemTransaction()) {
+            return false;
+        }
+
+        double fee = calculate_fee(tx.getAmount());
+        double totalAmount = tx.getAmount() + fee;
+        Double senderBalance = temporaryBalances.get(tx.getSender());
+
+        if (senderBalance == null || senderBalance < totalAmount) {
+            System.out.println("Nema dovoljno sredstava nakon prethodnih transakcija u bloku: " + tx.getSender());
+            return false;
+        }
+
+        temporaryBalances.put(tx.getSender(), senderBalance - totalAmount);
+
+        if (temporaryBalances.containsKey(tx.getReceiver())) {
+            temporaryBalances.put(tx.getReceiver(), temporaryBalances.get(tx.getReceiver()) + tx.getAmount());
+        }
+
+        if (!validatorNodes.isEmpty()) {
+            double feePerComputer = fee / validatorNodes.size();
+            for (Computer validator : validatorNodes) {
+                String validatorAddress = validator.getAddress();
+
+                if (temporaryBalances.containsKey(validatorAddress)) {
+                    temporaryBalances.put(validatorAddress, (temporaryBalances.get(validatorAddress) + feePerComputer));
+                }
+            }
+        }
+        // ako prođe sve ovo vrati true
+        return true;
+    }
+
+    private boolean transactionsCheck(Block newBlock) {
+        Map<String, Double> temporaryBalances = createBalanceSnapshot();
+        return transactionsCheck(newBlock, temporaryBalances);
+    }
+
+    private boolean transactionsCheck(Block newBlock, Map<String, Double> temporaryBalances) { // provjerava se jesu li
+                                                                                               // transakcije dobro
+                                                                                               // odrađene u ovome
+        // blocku prije nego što se izloži za mine
+        int brojSystemTransakcija = 0;
+        for (int i = 0; i < newBlock.getTransactions().size(); i++) {
+            Transactions tx = newBlock.getTransactions().get(i);
+            PublicWallet senderWallet = publicWalletRegistry.get(tx.getSender()); // sada ovaj wallet više ne sadrži
+                                                                                  // privatne ključeve nego samo ono što
+                                                                                  // svi smiju vidjeti
+            if (tx.isSystemTransaction()) {
+                // system transakcija je prva transakcija u bloku
+                brojSystemTransakcija++;
+                if (i != 0) {
+                    System.out.println("System transakcija nije prva u bloku!!!");
+                    return false;
+                }
+
+                // u jednom bloku smije biti samo jedna coinbase transakcija
+                if (brojSystemTransakcija > 1) {
+                    System.out.println("Blok ima vise od jedne coinbase transakcije.");
+                    return false;
+                }
+
+                // miner si ne smije sam povecati nagradu
+                if (Double.compare(tx.getAmount(), MINING_REWARD) != 0) {
+                    System.out.println("System nagrada nije ispravna. Lopove jedan.");
+                    return false;
+                }
+
+                // System ima digitalni potpis
+                if (tx.getSignature() != null) {
+                    System.out.println("System transakcija ne smije imati potpis. Toga smo se riješili za WLAN.");
+                    return false;
+                }
+
+                // Treba se nekome poslati money
+                if (!publicWalletRegistry.containsKey(tx.getReceiver())) {
+                    System.out.println("Miner wallet ne postoji.");
+                    return false;
+                }
+                temporaryBalances.put(tx.getReceiver(), temporaryBalances.get(tx.getReceiver()) + tx.getAmount());
+                continue;
+            }
+
+            // transakcije nevezane za minera
             if (senderWallet == null) {
                 System.out.println("Nepoznata adresa: " + tx.getSender());
                 return false;
             }
 
             // Provjera balansa
-            if (senderWallet.getBalance() < tx.getAmount()+calculate_fee(tx.getAmount())) {
-                System.out.println("Posiljatelj nema dovoljno sredstava: " + tx.getSender());
-                return false;
-            }
+            // ovo sada zbog temporary balance vise ne treba
+            /*
+             * if (senderWallet.getBalance() < tx.getAmount() +
+             * calculate_fee(tx.getAmount())) {
+             * System.out.println("Posiljatelj nema dovoljno sredstava: " + tx.getSender());
+             * return false;
+             * }
+             */
             // je li negativno (min koliko se moze poslati)
-            if(tx.getAmount() < 0.0001) {
+            if (tx.getAmount() < 0.0001) {
                 System.out.println("Posiljatelj upisao negativan ili nedovoljan iznos: " + tx.getSender());
                 return false;
             }
 
             // Provjera potpisa
-            String data = tx.getSender() + tx.getReceiver() + tx.getAmount();
-            if (!senderWallet.verifySignature(data, tx.getSignature())) {
+            // String data = tx.getSender() + tx.getReceiver() + tx.getAmount();
+            if (!tx.verifySignature()) {
                 System.out.println("Neispravan potpis transakcije od: " + tx.getSender());
                 return false;
             }
+            // ova je nova metoda
+            if (!applyTransactionToTemporaryBalances(tx, temporaryBalances)) {
+                return false;
+            }
         }
+
+        // Još jedna provjeza za
+        if (brojSystemTransakcija != 1) {
+            System.out.println("Blok mora imati tocno jednu System transakciju.");
+            return false;
+        }
+
         return true;
 
     }
 
-    public boolean isChainValid() {
-        for (int i = 1; i < chain.size(); i++) {
-            Block current = chain.get(i);
-            Block previous = chain.get(i - 1);
+    // promjeniti cijelu ovu metodu kasnije
 
+    public boolean isChainValid() {
+        Map<String, Double> replayBalances = new HashMap<>(initialBalances);
+        String target = "0".repeat(difficulty);
+
+        for (int i = 0; i < chain.size(); i++) {
+            Block current = chain.get(i);
+            //provjerava odgovara li index
+            if (current.index != i) {
+                System.out.println("Index bloka " + i + " nije valjan.");
+                return false;
+            }
+            // provjera merkle roota blokova
+            if (!current.calculateMerkleRoot().equals(current.getMerkleRoot())) {
+                System.out.println("Merkle root bloka " + i + " nije valjan.");
+                return false;
+            }
             // provjera jesu li točno izračunati hashevi hasha
             if (!current.hash.equals(current.calculateBlockHash())) {
                 System.out.println("Hash bloka " + i + " nije valjan.");
                 return false;
             }
 
-            // provjera hash veze (povezanost)
-            if (!current.getPreviousHash().equals(previous.hash)) {
+            // Genesis nema PoW ni coinbase/system transakciju
+            if (i == 0) {
+                if (!current.previousHash.equals("0")) {
+                    System.out.println("Genesis previous hash nije valjan.");
+                    return false;
+                }
+
+                if (!current.getTransactions().isEmpty()) {
+                    System.out.println("Genesis ne smije imati transakcije.");
+                    return false;
+                }
+                continue;
+            }
+
+            Block previous = chain.get(i - 1);
+            //provjerava se je li ovo povezani lanac uopće
+            if (!current.previousHash.equals(previous.hash)) {
                 System.out.println("Previous hash bloka " + i + " nije valjan.");
+                return false;
+            }
+
+            if (!current.hash.startsWith(target)) {
+                System.out.println("Proof-of-Work bloka " + i + " nije valjan.");
+                return false;
+            }
+
+            if (!transactionsCheck(current, replayBalances)) {
+                System.out.println("Transakcije bloka " + i + " nisu valjane.");
+                return false;
+            }
+        }
+
+        // Provjera odgovara li stvarno stanje rezultatu blockchaina
+        for (Map.Entry<String, PublicWallet> entry : publicWalletRegistry.entrySet()) {
+            String address = entry.getKey();
+            double actualBalance = entry.getValue().getBalance();
+            double replayBalance = replayBalances.getOrDefault(address, 0.0);
+            if (Math.abs(actualBalance - replayBalance) > 0.000000001) { // ovo ce se maknuti kada preciznost bude veća jer double nije siguran
+                System.out.println("Balance se ne podudara za adresu: " + address);
                 return false;
             }
         }
@@ -243,25 +462,33 @@ public class BlockChain {
 
         currentMiningBatch = new ArrayList<>(transactionPool);
 
-        Transactions rewardTx = new Transactions(
-                getSystemWallet().getAddress(),
-                minerAddress,
-                10.0,
-                getSystemWallet()
-                        .signData(getSystemWallet().getAddress() + minerAddress + "10.0")); // 10 BTC nagrada ako se
-                                                                                            // uspješno majna
-
-        // addPendingTransaction(rewardTx);
-        currentMiningBatch.add(rewardTx);
-
-        getWalletRegistry().get(adresa_walleta.get(0))
-                .signData(adresa_walleta.get(0) + minerAddress + "10.0");
+        // ovo je staro dok je postojao system wallet
+        /*
+         * Transactions rewardTx = new Transactions(
+         * getSystemWallet().getAddress(),
+         * minerAddress,
+         * 10.0,
+         * getSystemWallet()
+         * .signData(getSystemWallet().getAddress() + minerAddress + "10.0")); // 10 BTC
+         * nagrada ako se
+         * // uspješno majna
+         * 
+         * // addPendingTransaction(rewardTx);
+         * currentMiningBatch.add(rewardTx);
+         * 
+         * getWalletRegistry().get(adresa_walleta.get(0))
+         * .signData(adresa_walleta.get(0) + minerAddress + "10.0");
+         */
 
         // prije nego se napravi block izbacujemo sve transakcije koje su nepotvrđene
         ArrayList<Transactions> approvedTransactions = new ArrayList<>();
         ArrayList<Transactions> unapprovedTransactions = new ArrayList<>();
+        Map<String, Double> temporaryBalances = createBalanceSnapshot();
+        // majnera cemo isto spriječiti za sada da uopće iskopa nešto što ne valja jer
+        // je njegov posao onda besmislen ovo ne mora biti, ali je efikasniji algoritam
         for (Transactions tx : currentMiningBatch) {
-            if (isTransactionApproved_Full(tx)) {
+
+            if (isTransactionApproved_Full(tx) && applyTransactionToTemporaryBalances(tx, temporaryBalances)) {
                 approvedTransactions.add(tx);
             } else {
                 unapprovedTransactions.add(tx);
@@ -269,6 +496,10 @@ public class BlockChain {
                         + tx.getAmount() + ")");
             }
         }
+
+        Transactions rewardTx = Transactions.createSystemTransaction(minerAddress, MINING_REWARD);
+
+        approvedTransactions.add(0, rewardTx);
 
         Block newBlock = new Block(getLatestBlock().index + 1, getLatestBlock().hash,
                 System.currentTimeMillis(),
@@ -283,12 +514,12 @@ public class BlockChain {
             int indexTx = 0;
             for (Transactions tx : approvedTransactions) {
                 MerkleTree mt = new MerkleTree();
-                if (!isTransactionApproved_Light(tx, newBlock, mt.getMerkleProof(newBlock.getTransactionsToStringHashs(), indexTx), indexTx)) {
+                if (!isTransactionApproved_Light(tx, newBlock,
+                        mt.getMerkleProof(newBlock.getTransactionsToStringHashs(), indexTx), indexTx)) {
 
                     System.out.println("Light nodovi odbacili transakciju: " + tx.getSender() +
                             " -> " + tx.getReceiver() + " (" + tx.getAmount() + ")");
-                }
-                else {
+                } else {
                     System.out.println("Light nodovi prihvatili transakciju: " + tx.getSender() +
                             " -> " + tx.getReceiver() + " (" + tx.getAmount() + ")");
                 }
@@ -316,11 +547,11 @@ public class BlockChain {
         int ukupno = 0;
 
         for (Computer validator : validatorNodes) { // svatko za sebe provjeri je li dobro
-            if(validator.getType() == Computer.NodeType.MINER || validator.getType() == Computer.NodeType.FULL) {
+            if (validator.getType() == Computer.NodeType.MINER || validator.getType() == Computer.NodeType.FULL) {
                 if (validator.validateTransaction(tx)) {
-                approvals++;
-            }
-            ukupno++;
+                    approvals++;
+                }
+                ukupno++;
             }
         }
 
@@ -336,13 +567,13 @@ public class BlockChain {
 
         int approvals = 0;
         int ukupno = 0;
-        
+
         for (Computer validator : validatorNodes) { // svatko za sebe provjeri je li dobro
-            if(validator.getType() == Computer.NodeType.LIGHT) {
-                if (validator.validateTransaction(tx,block,proof,txIndex)) {
-                approvals++;
-            }
-            ukupno++;
+            if (validator.getType() == Computer.NodeType.LIGHT) {
+                if (validator.validateTransaction(tx, block, proof, txIndex)) {
+                    approvals++;
+                }
+                ukupno++;
             }
         }
 
@@ -369,20 +600,31 @@ public class BlockChain {
     }
 
     public void printAllWallets() {
-        /*System.out.println("\nSvi walleti:");
-        getWalletRegistry().forEach(
-                (address, wallet) -> System.out.println("Adresa: " + address + " | Balance: " + wallet.getBalance()));*/
+        /*
+         * System.out.println("\nSvi walleti:");
+         * getWalletRegistry().forEach(
+         * (address, wallet) -> System.out.println("Adresa: " + address + " | Balance: "
+         * + wallet.getBalance()));
+         */
         System.out.println("\nSvi walleti:");
-        for(String address : adresa_walleta) {
-            System.out.println("Adresa: "+address+" | Balance: "+getWalletRegistry().get(address).getBalance());
+        for (String address : adresa_walleta) {
+            System.out.println(
+                    "Adresa: " + address + " | Balance: " + getPublicWalletRegistry().get(address).getBalance());
         }
     }
 
     public void printAllWallets_DETAL() {
         System.out.println("\nSvi walleti DETAL:");
-        for(String address : adresa_walleta) {
-            System.out.println("Adresa: "+address+" | Balance: "+getWalletRegistry().get(address).getBalance()+" | Public key hash: "
-            +Cryptography.applySHA256(getWalletRegistry().get(address).getPublicKey().toString()) + " | Private key hash: " + Cryptography.applySHA256(getWalletRegistry().get(address).getPrivateKey().toString()));
+        for (String address : adresa_walleta) {
+            System.out
+                    .println("Adresa: " + address + " | Balance: " + getPublicWalletRegistry().get(address).getBalance()
+                            + " | Public key hash: "
+                            + Cryptography.applySHA256(getPublicWalletRegistry().get(address).getPublicKey().toString())
+                            + " | Private key hash: ");
+            // +
+            // Cryptography.applySHA256(getPublicWalletRegistry().get(address).getPrivateKey().toString()));
+            // ova sada linija nema više smisla kako private ključevi nisu javni demo toga
+            // je gotov
         }
     }
 }

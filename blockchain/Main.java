@@ -5,12 +5,21 @@ import java.util.Scanner;
 public class Main {
     public static int counter = 0;
 
-    public static void posalji_coins(ArrayList<String> adresa_walleta, BlockChain blockChain, int i, int j,
-            Double money) {
-        Transactions t1 = new Transactions(adresa_walleta.get(i), adresa_walleta.get(j), money,
-                blockChain.getWalletRegistry().get(adresa_walleta.get(i))
-                        .signData(adresa_walleta.get(i) + adresa_walleta.get(j) + new String(money+"")));
-        blockChain.addPendingTransaction(t1);
+    public static void posalji_coins(ArrayList<String> adresa_walleta,BlockChain blockChain,int i,int j,Double money) {
+
+        String senderAddress = adresa_walleta.get(i);
+        String receiverAddress = adresa_walleta.get(j);
+
+        Wallet senderWallet = blockChain
+                .getPrivateWalletRegistry()
+                .get(senderAddress);
+
+        Transactions transaction = senderWallet.createTransaction(
+                receiverAddress,
+                money);
+
+        blockChain.addPendingTransaction(transaction);
+
         System.out.println("Dodana transakcija " + counter);
         counter++;
     }
@@ -30,7 +39,7 @@ public class Main {
         // sutra skontati zašto ovaj system uzima random index u walletima i neka prestane po pitanju toga
         // light node implementirati
         ArrayList<String> adresa_walleta = new ArrayList<>();
-        for (String adresa : blockChain.getWalletRegistry().keySet()) {
+        for (String adresa : blockChain.getPublicWalletRegistry().keySet()) {
             System.out.println(adresa);
             adresa_walleta.add(adresa);
         }
@@ -43,13 +52,13 @@ public class Main {
          * [4] JA
          */
         adresa_walleta = blockChain.getAdreseWalleta();
-        blockChain.getWalletRegistry().get(adresa_walleta.get(0)).increaseBalance(500); // sender
-        blockChain.getWalletRegistry().get(adresa_walleta.get(1)); // primač
-        blockChain.getWalletRegistry().get(adresa_walleta.get(2)).increaseBalance(200);
-        blockChain.getWalletRegistry().get(adresa_walleta.get(3));
-        blockChain.getWalletRegistry().get(adresa_walleta.get(4)).increaseBalance(100);;
-        blockChain.getWalletRegistry().get(adresa_walleta.get(5)).increaseBalance(2000);;
-        blockChain.getWalletRegistry().get(adresa_walleta.get(6)).increaseBalance(1000);;
+        blockChain.addInitialBalance(adresa_walleta.get(0), 500);
+        blockChain.addInitialBalance(adresa_walleta.get(1), 1000);
+        blockChain.addInitialBalance(adresa_walleta.get(2), 290);
+        blockChain.addInitialBalance(adresa_walleta.get(3), 53);
+        blockChain.addInitialBalance(adresa_walleta.get(4), 50);
+        blockChain.addInitialBalance(adresa_walleta.get(5), 67);
+        blockChain.addInitialBalance(adresa_walleta.get(6), 500);
 
         Computer c1_System_vise_nije_xD = new Computer(Computer.NodeType.FULL, adresa_walleta.get(0), blockChain);
         Computer c2_Alice = new Computer(Computer.NodeType.MINER, adresa_walleta.get(1), blockChain);

@@ -45,8 +45,11 @@ public class BlockchainGUI_CreateAccountFrame extends JFrame {
             blockchain.getValidatorNodes().add(za_dodati);
 
             // Hash-evi za login
-            String pubHash = Cryptography.applySHA256(newWallet.getPublicKey().toString());
-            String privHash = Cryptography.applySHA256(newWallet.getPrivateKey().toString());
+            String pubHash = Cryptography.applySHA256(
+                    newWallet.getPublicKeyString());
+            
+            String privHash = Cryptography.applySHA256(
+                    newWallet.getPrivateKeyString());
 
             // Ispis
             StringBuilder sb = new StringBuilder();

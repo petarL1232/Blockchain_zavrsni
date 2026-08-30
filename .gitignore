@@ -1,0 +1,64 @@
+*.class
+*.jar
+*.war
+*.ear
+# Build folders
+target/
+build/
+out/
+bin/
+# Maven
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+# Gradle
+.gradle/
+**/build/
+
+# =========================
+# VS Code
+# =========================
+
+.vscode/
+
+# =========================
+# Eclipse
+# =========================
+
+.classpath
+.project
+.settings/
+
+# =========================
+# Operating system files
+# =========================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Logs / temporary files
+# =========================
+
+*.log
+*.tmp
+*.temp
+*.swp
+*~
+
+# =========================
+# Environment / secrets
+# =========================
+
+.env
+.env.*
+*.key
+*.pem
+
+# =========================
+# Project-specific files
+# =========================
+
+blockchain/MainB.java
+tmp/
+blockchain/MainTestoviBugfixes.java

@@ -41,8 +41,8 @@ class BlockchainGUI_MINER extends JFrame {
             String receiver = JOptionPane.showInputDialog("Unesi adresu primatelja:");
             String amountStr = JOptionPane.showInputDialog("Unesi iznos:");
             double amount = Double.parseDouble(amountStr);
-            String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + ""));
-            Transactions tx = new Transactions(wallet.getAddress(), receiver, amount, signature);
+            //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + "")); ovo sada više ne treba to se radi u Wallet klasi
+            Transactions tx = wallet.createTransaction(receiver, amount);
             blockchain.addPendingTransaction(tx);
 
             this.updateUI();

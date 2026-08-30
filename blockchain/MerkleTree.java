@@ -3,6 +3,8 @@ import java.util.Arrays;
 import java.util.List;
 
 public class MerkleTree {
+    public static final String EMPTY_MERKLE_ROOT = Cryptography.applySHA256("");
+
 
 
     // ovu operaciju može izvršiti samo full node
@@ -49,6 +51,10 @@ public class MerkleTree {
 
     // ovu operaciju može izvršiti samo full node
     public String getMerkleRoot(List<String> transactions) {
+        if(transactions == null || transactions.isEmpty()) {
+            return EMPTY_MERKLE_ROOT; // jasno dati do znanja da su transakcije prazne
+        }
+        
         List<String> hashes = new ArrayList<>();
         for (String tx : transactions) {
             hashes.add(Cryptography.applySHA256(tx)); // listovi su samo hashovi

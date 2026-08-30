@@ -33,8 +33,8 @@ class BlockchainGUI_LIGHT_FULL extends JFrame {
             String receiver = JOptionPane.showInputDialog("Unesi adresu primatelja:");
             String amountStr = JOptionPane.showInputDialog("Unesi iznos:");
             double amount = Double.parseDouble(amountStr);
-            String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + ""));
-            Transactions tx = new Transactions(wallet.getAddress(), receiver, amount, signature);
+            //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + ""));
+            Transactions tx = wallet.createTransaction(receiver, amount);//new Transactions(wallet.getAddress(),wallet.getPublicKey(), receiver, amount, signature);
             blockchain.addPendingTransaction(tx);
 
             this.updateUI();

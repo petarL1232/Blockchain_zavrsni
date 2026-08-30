@@ -1,7 +1,7 @@
 import java.util.Base64;
 import java.security.*;
 import java.security.spec.ECGenParameterSpec;
-
+import java.security.spec.X509EncodedKeySpec;
 public class Cryptography {
 
 
@@ -87,6 +87,21 @@ public class Cryptography {
             throw new RuntimeException(e);
         }
     }
+    public static String publicKeyToString(PublicKey publicKey) {
+        return Base64.getEncoder().encodeToString(publicKey.getEncoded());
+    }
 
+    public static PublicKey stringToPublicKey(String publicKeyString) {
+        try {
+            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyString);
+
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes); // isto se koristi i u knjizi prema kojoj radim
+
+            return keyFactory.generatePublic(keySpec);
+        } catch (Exception e) {
+            throw new RuntimeException("Javni kljuc nije ispravan.!!!!!", e);
+        }
+    }
     // gdb --version
 }

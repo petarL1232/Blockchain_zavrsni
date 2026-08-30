@@ -112,7 +112,7 @@ public class Computer implements Runnable {
             return valid;
 
         } else {
-            Wallet senderWallet = blockchain.getWalletRegistry().get(tx.getSender());
+            PublicWallet senderWallet = blockchain.getPublicWalletRegistry().get(tx.getSender());
 
             if (senderWallet == null) {
                 System.out.println("Nepoznata adresa: " + tx.getSender());
@@ -130,8 +130,8 @@ public class Computer implements Runnable {
             }
 
             // Provjera potpisa
-            String data = tx.getSender() + tx.getReceiver() + tx.getAmount();
-            if (!senderWallet.verifySignature(data, tx.getSignature())) {
+            //String data = tx.getSender() + tx.getReceiver() + tx.getAmount();
+            if (!tx.verifySignature()) {
                 System.out.println("Neispravan potpis transakcije od: " + tx.getSender());
                 return false;
             }
@@ -144,7 +144,7 @@ public class Computer implements Runnable {
             System.out.println("OVO SE NIJE TREBALO AKTIVIRATI!");
 
         } else {
-            Wallet senderWallet = blockchain.getWalletRegistry().get(tx.getSender());
+            PublicWallet senderWallet = blockchain.getPublicWalletRegistry().get(tx.getSender());
 
             if (senderWallet == null) {
                 System.out.println("Nepoznata adresa: " + tx.getSender());
@@ -163,7 +163,7 @@ public class Computer implements Runnable {
 
             // Provjera potpisa
             String data = tx.getSender() + tx.getReceiver() + tx.getAmount();
-            if (!senderWallet.verifySignature(data, tx.getSignature())) {
+            if (!tx.verifySignature()) {
                 System.out.println("Neispravan potpis transakcije od: " + tx.getSender());
                 return false;
             }
@@ -172,13 +172,13 @@ public class Computer implements Runnable {
     }
 
 
-    public void receiveTransaction(Transactions tx, PublicKey senderKey) {
+    public void receiveTransaction(Transactions tx) {
         try {
-            if (tx.verifySignature(senderKey)) {
-                System.out.println("✅ [" + address + "] Transakcija valjana, dodajem u mempool.");
+            if (tx.verifySignature()) {
+                System.out.println("EPIC [" + address + "] Transakcija valjana, dodajem u mempool.");
                 blockchain.addPendingTransaction(tx);
             } else {
-                System.out.println("❌ [" + address + "] Potpis transakcije nije valjan!");
+                System.out.println("!!!![" + address + "] Potpis transakcije nije valjan!");
             }
         } catch (Exception e) {
             e.printStackTrace();
