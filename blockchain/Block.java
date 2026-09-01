@@ -24,10 +24,20 @@ public class Block {
         this.hash = calculateBlockHash(); // hash ovoga
     }
 
+    public static String calculateHeaderHash(int index,String previousHash,long timestamp,String merkleRoot,long nonce) {
+        return Cryptography.applySHA256(calculateHeader(index,previousHash,timestamp,merkleRoot,nonce));
+    }
+    public static String calculateHeader(int index,String previousHash,long timestamp,String merkleRoot,long nonce) {
+        String input = index + "|" + previousHash + "|" + timestamp + "|" + merkleRoot + "|" + nonce;
+        return input;
+    }
+
+
     public String calculateBlockHash() {
-        String input = (index + "|") + (previousHash + "|") + (timestamp + "|") + (transactionsToString() + "|") + (merkleRoot + "|")
+        /*String input = (index + "|") + (previousHash + "|") + (timestamp + "|") + (transactionsToString() + "|") + (merkleRoot + "|")
                 + (nonce + ""); // popraviti transactionsToString
-        return Cryptography.applySHA256(input);
+        return Cryptography.applySHA256(input);*/
+        return calculateHeaderHash(index,previousHash,timestamp,merkleRoot,nonce); // ne trebaju vise transactionsToString zato sto su zaštićene s merkle root-om
 
     }
 

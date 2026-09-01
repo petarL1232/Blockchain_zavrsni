@@ -1,11 +1,11 @@
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-
+import java.math.*;
 public class Main {
     public static int counter = 0;
 
-    public static void posalji_coins(ArrayList<String> adresa_walleta,BlockChain blockChain,int i,int j,String money) {
+    public static void posalji_coins(ArrayList<String> adresa_walleta,BlockChain blockChain,int i,int j,long money) {
 
         String senderAddress = adresa_walleta.get(i);
         String receiverAddress = adresa_walleta.get(j);
@@ -16,7 +16,7 @@ public class Main {
 
         Transactions transaction = senderWallet.createTransaction(
                 receiverAddress,
-                Money.fromCoins(money));
+                money);
 
         blockChain.addPendingTransaction(transaction);
 
@@ -26,7 +26,6 @@ public class Main {
 
     public static void main(String[] args) {
 
-        System.out.println(Money.format(Money.fromCoins("0.1") + Money.fromCoins("0.2")));
         BlockChain blockChain = new BlockChain();
         List<Transactions> transakcije = new ArrayList<>();
 
@@ -53,13 +52,13 @@ public class Main {
          * [4] JA
          */
         adresa_walleta = blockChain.getAdreseWalleta();
-        blockChain.addInitialBalance(adresa_walleta.get(0), Money.coins(500));
-        blockChain.addInitialBalance(adresa_walleta.get(1), Money.coins(1000));
-        blockChain.addInitialBalance(adresa_walleta.get(2), Money.coins(290));
-        blockChain.addInitialBalance(adresa_walleta.get(3), Money.coins(53));
-        blockChain.addInitialBalance(adresa_walleta.get(4), Money.coins(50));
-        blockChain.addInitialBalance(adresa_walleta.get(5), Money.coins(67));
-        blockChain.addInitialBalance(adresa_walleta.get(6), Money.coins(500));
+        blockChain.addInitialBalance(adresa_walleta.get(0), 500);
+        blockChain.addInitialBalance(adresa_walleta.get(1), 1000);
+        blockChain.addInitialBalance(adresa_walleta.get(2), 290);
+        blockChain.addInitialBalance(adresa_walleta.get(3), 53);
+        blockChain.addInitialBalance(adresa_walleta.get(4), 50);
+        blockChain.addInitialBalance(adresa_walleta.get(5), 67);
+        blockChain.addInitialBalance(adresa_walleta.get(6), 500);
 
         Computer c1_System_vise_nije_xD = new Computer(Computer.NodeType.FULL, adresa_walleta.get(0), blockChain);
         Computer c2_Alice = new Computer(Computer.NodeType.MINER, adresa_walleta.get(1), blockChain);
@@ -86,19 +85,19 @@ public class Main {
             blockChain.printAllWallets();
             Thread.sleep(5000); // pričekaj malo prije prve transakcije
 
-            posalji_coins(adresa_walleta, blockChain, 2, 1, "50");
+            posalji_coins(adresa_walleta, blockChain, 2, 1, 50);
 
             Thread.sleep(10000); // čekaj 10 sekundi
 
-            posalji_coins(adresa_walleta, blockChain, 0, 1, "100000");
-            posalji_coins(adresa_walleta, blockChain, 0, 1, "1.2");
-            posalji_coins(adresa_walleta, blockChain, 0, 1, "1.0");
+            posalji_coins(adresa_walleta, blockChain, 0, 1, 100000);
+            posalji_coins(adresa_walleta, blockChain, 0, 1, 1);
+            posalji_coins(adresa_walleta, blockChain, 0, 1, 1);
 
             blockChain.printBlockchain();
 
             Thread.sleep(20000); // čekaj još 20 sekundi
 
-            posalji_coins(adresa_walleta, blockChain, 2, 1, "50");
+            posalji_coins(adresa_walleta, blockChain, 2, 1, 50);
 
             Thread.sleep(30000);
 

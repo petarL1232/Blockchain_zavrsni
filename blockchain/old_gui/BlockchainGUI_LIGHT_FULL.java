@@ -34,7 +34,7 @@ class BlockchainGUI_LIGHT_FULL extends JFrame {
             String amountStr = JOptionPane.showInputDialog("Unesi iznos:");
             try {
                 long amount = Money.fromCoins(amountStr);
-                if(amount < Money.MIN_TRANSACTION_AMOUNT) {
+                if(amount < ConsensusRules.MIN_TRANSACTION_AMOUNT) {
                     throw new IllegalArgumentException("Iznos je premalen.");
                 }
                 //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + ""));

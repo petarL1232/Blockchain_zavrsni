@@ -2,7 +2,6 @@ import java.math.BigDecimal;
 
 public final class Money {
     public static final long UNITS_PER_COIN = 100_000_000L;
-    public static final long MIN_TRANSACTION_AMOUNT = 10_000L;
 
     private Money() {
     }
