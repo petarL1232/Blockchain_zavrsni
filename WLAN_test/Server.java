@@ -24,8 +24,12 @@ public class Server {
             String message = "";
 
             while(!message.equals("ZAUSTAVI")) {
-                message = in.readUTF();
-                System.out.println(message);
+                try {
+                    message = in.readUTF();
+                    System.out.println(message);
+                } catch (IOException e) {
+                    break;
+                }
             }
             System.out.println("Gasim konekciju");
 

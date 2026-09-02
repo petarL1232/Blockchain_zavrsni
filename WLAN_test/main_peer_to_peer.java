@@ -15,7 +15,7 @@ public class Main_peer_to_peer {
         */
 
 
-        Client client = new Client(Ipconfig.IP_OF_TEST_PC, Ipconfig.PORT);
-        
+        //Client client = new Client(Ipconfig.IP_OF_MY_PC, Ipconfig.PORT);
+        Server server = new Server(Ipconfig.PORT);
     }
 }
