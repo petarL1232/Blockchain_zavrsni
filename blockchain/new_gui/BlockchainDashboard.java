@@ -142,7 +142,7 @@ public class BlockchainDashboard extends JPanel {
         autoModeButton = secondaryToggle("Auto mode · OFF",false);
         autoModeButton.setAlignmentX(LEFT_ALIGNMENT);
         autoModeButton.setMaximumSize(new Dimension(Integer.MAX_VALUE,38));
-        autoModeButton.setToolTipText("Nasumične transakcije svake 4 sekunde; približno 10% pokušaja je nevaljano.");
+        autoModeButton.setToolTipText("Promjenjivi promet svakih 0.45–1.4 sekunde, uz povremene burstove i 10% nevaljanih pokušaja.");
         autoModeButton.addActionListener(event -> {
             boolean enabled = autoModeButton.isSelected();
             runAction(() -> controller.setAutoMode(enabled));
@@ -261,7 +261,7 @@ public class BlockchainDashboard extends JPanel {
         autoModeButton.setSelected(snapshot.autoModeEnabled);
         autoModeButton.setText(snapshot.autoModeEnabled ? "Auto mode · ON" : "Auto mode · OFF");
         autoModeButton.setForeground(snapshot.autoModeEnabled ? ModernTheme.SUCCESS : ModernTheme.TEXT);
-        autoModeButton.setToolTipText("Prihvaćeno: " + snapshot.automaticTransactions + " · odbijeno: " + snapshot.rejectedAutomaticTransactions + " · oko 10% pokušaja namjerno je nevaljano.");
+        autoModeButton.setToolTipText("Prihvaćeno: " + snapshot.automaticTransactions + " · odbijeno: " + snapshot.rejectedAutomaticTransactions + " · promet dolazi u nasumičnim burstovima.");
     }
 
     private void animate() {

@@ -14,7 +14,7 @@ public class NewGUI_Main {
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
             frame.setMinimumSize(new Dimension(1180,760));
             frame.setSize(1480,920);
-            frame.setLocationRelativeTo(null);
+            frame.setLocationRelativeTo(null); 
             frame.setContentPane(dashboard);
             frame.addWindowListener(new WindowAdapter() {
                 @Override

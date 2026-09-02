@@ -52,6 +52,7 @@ public class BlockchainUIController {
     private volatile boolean chainValid;
     private volatile String loggedInAddress;
     private volatile boolean autoModeEnabled;
+    private volatile int autoModeGeneration;
     private ScheduledFuture<?> autoModeTask;
 
     private BlockchainUIController(BlockChain blockchain) {
@@ -287,28 +288,47 @@ public class BlockchainUIController {
         synchronized(autoModeLock) {
             if(autoModeEnabled == enabled) return ActionResult.ok("Auto mode je već " + (enabled ? "uključen." : "isključen."));
             autoModeEnabled = enabled;
+            int generation = ++autoModeGeneration;
             if(autoModeTask != null) autoModeTask.cancel(false);
             autoModeTask = null;
             if(enabled) {
                 try {
-                    autoModeTask = autoModeScheduler.scheduleWithFixedDelay(this::runAutoTransaction,350,4000,TimeUnit.MILLISECONDS);
+                    autoModeTask = autoModeScheduler.schedule(() -> runAutoTraffic(generation),250,TimeUnit.MILLISECONDS);
                 } catch(RejectedExecutionException e) {
                     autoModeEnabled = false;
                     return ActionResult.fail("Auto mode worker nije dostupan.");
                 }
             }
         }
-        addActivity(enabled ? "Auto mode je uključen" : "Auto mode je isključen",enabled ? "Nodeovi nasumično šalju transakcije; približno 10% pokušaja namjerno je nevaljano." : "Automatsko stvaranje transakcija je zaustavljeno.",enabled ? "success" : "warning");
+        addActivity(enabled ? "Auto mode je uključen" : "Auto mode je isključen",enabled ? "Promet dolazi u nasumičnim razmacima i povremenim burstovima; 10% pokušaja namjerno je nevaljano." : "Automatsko stvaranje transakcija je zaustavljeno.",enabled ? "success" : "warning");
         return ActionResult.ok("Auto mode je " + (enabled ? "uključen." : "isključen."));
     }
 
-    private void runAutoTransaction() {
-        if(!autoModeEnabled || shuttingDown.get()) return;
-        try {
-            createAutoTransaction(ThreadLocalRandom.current().nextInt(10) == 0);
-        } catch(RuntimeException e) {
-            rejectedAutomaticTransactions.incrementAndGet();
-            addActivity("Auto mode · pokušaj odbijen","Generator nije napravio transakciju: " + safeMessage(e),"danger");
+    private void runAutoTraffic(int generation) {
+        if(!autoModeEnabled || shuttingDown.get() || generation != autoModeGeneration) return;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int attempts = random.nextInt(100) < 25 ? random.nextInt(2,5) : 1;
+        for(int i = 0; i < attempts; i++) {
+            if(!autoModeEnabled || shuttingDown.get() || generation != autoModeGeneration) return;
+            try {
+                createAutoTransaction(random.nextInt(10) == 0);
+            } catch(RuntimeException e) {
+                rejectedAutomaticTransactions.incrementAndGet();
+                addActivity("Auto mode · pokušaj odbijen","Generator nije napravio transakciju: " + safeMessage(e),"danger");
+            }
+        }
+        scheduleNextAutoTraffic(generation,random.nextLong(450,1401));
+    }
+
+    private void scheduleNextAutoTraffic(int generation, long delay) {
+        synchronized(autoModeLock) {
+            if(!autoModeEnabled || shuttingDown.get() || generation != autoModeGeneration) return;
+            try {
+                autoModeTask = autoModeScheduler.schedule(() -> runAutoTraffic(generation),delay,TimeUnit.MILLISECONDS);
+            } catch(RejectedExecutionException e) {
+                autoModeEnabled = false;
+                addActivity("Auto mode je zaustavljen","Scheduler više nije dostupan.","danger");
+            }
         }
     }
 
@@ -576,6 +596,7 @@ public class BlockchainUIController {
         if(!shuttingDown.compareAndSet(false,true)) return;
         synchronized(autoModeLock) {
             autoModeEnabled = false;
+            autoModeGeneration++;
             if(autoModeTask != null) autoModeTask.cancel(false);
             autoModeTask = null;
         }
