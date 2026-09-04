@@ -64,3 +64,4 @@ tmp/
 blockchain/MainTestoviBugfixes.java
 ipconfig.java
 WLAN_test/ipconfig.java
+WLAN/ipconfig.java
