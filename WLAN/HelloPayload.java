@@ -19,7 +19,7 @@ public class HelloPayload {
         this.tipHash = tipHash;
         this.cumulativeWork = cumulativeWork;
     }
-
+    //getteri
     public String getNetworkId() {
         return networkId;
     }

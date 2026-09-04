@@ -14,7 +14,7 @@ public class Block {
     public String hash;
     public String merkleRoot; // za Light nodove ovo je nužno dodati
 
-    public Block(int index, String previousHash, long timestamp, List<Transactions> data, int nonce) {
+    public Block(int index, String previousHash, long timestamp, List<Transactions> data, long nonce) {
         this.index = index; // koji je to blok po redu, trebat će za određivanje brzine mininga
         this.previousHash = previousHash; // opća svrha blockchaina
         this.timestamp = timestamp; // vrijeme u ms od 1970
