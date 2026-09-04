@@ -4,7 +4,7 @@ import java.util.List;
 
 public class BlockPayload {
 
-    private int index;//vjeruje
+    private long index;//vjeruje
     private String previousHash;//vjeruje
     private long timestamp;//vjeruje
     private List<TransactionPayload> transactions;//vjeruje (jer je vec provjerio)
@@ -13,7 +13,7 @@ public class BlockPayload {
     private String merkleRoot; // sam provjerava
     private int difficulty; // sam provjerava
 
-    public BlockPayload(int index, String previousHash, long timestamp, List<TransactionPayload> transactions,
+    public BlockPayload(long index, String previousHash, long timestamp, List<TransactionPayload> transactions,
             long nonce, String hash, String merkleRoot, int difficulty) {
         this.index = index;
         this.previousHash = previousHash;
@@ -25,7 +25,7 @@ public class BlockPayload {
         this.difficulty = difficulty;
     }
 
-    public int getIndex() {
+    public long getIndex() {
         return index;
     }
 

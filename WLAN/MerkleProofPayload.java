@@ -10,9 +10,7 @@ public class MerkleProofPayload {
     private List<String> siblingHashes;
     private String merkleRoot;
 
-    public MerkleProofPayload(String blockHash, String transactionId,
-                              int transactionIndex, List<String> siblingHashes,
-                              String merkleRoot) {
+    public MerkleProofPayload(String blockHash, String transactionId, int transactionIndex, List<String> siblingHashes, String merkleRoot) {
         this.blockHash = blockHash;
         this.transactionId = transactionId;
         this.transactionIndex = transactionIndex;
