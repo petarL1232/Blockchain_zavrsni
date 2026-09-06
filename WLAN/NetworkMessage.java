@@ -5,6 +5,8 @@ import java.util.UUID;
 
 public class NetworkMessage {
 
+    public static final int CURRENT_PROTOCOL_VERSION = 1;
+
     private int protocolVersion;
     private MessageType type;
     private String messageId; // UUID
@@ -17,7 +19,7 @@ public class NetworkMessage {
     }
 
     public NetworkMessage(MessageType type, String senderNodeId, String replyToId, JsonElement payload) {
-        this.protocolVersion = 1;
+        this.protocolVersion = CURRENT_PROTOCOL_VERSION;
         this.type = type;
         this.messageId = UUID.randomUUID().toString();
         this.senderNodeId = senderNodeId;

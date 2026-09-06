@@ -6,40 +6,27 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class Server {
+public class Server implements AutoCloseable{
     private Socket socket = null;
-    private ServerSocket serverSocket = null;
-    private DataInputStream in = null;
+    private final ServerSocket serverSocket;
 
-    public Server(int port) {
-        try {
-            serverSocket = new ServerSocket(port);
-            System.out.println("Server je pokrenut na "+port);
 
-            socket = serverSocket.accept();
-            System.out.println("Client je prihvacen na " + socket.getLocalAddress() +" "+ socket.getInetAddress());
-
-            in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-
-            String message = "";
-
-            while(!message.equals("ZAUSTAVI")) {
-                try {
-                    message = in.readUTF();
-                    System.out.println(message);
-                } catch (IOException e) {
-                    break;
-                }
-            }
-            System.out.println("Gasim konekciju");
-
-            socket.close();
-            in.close();
-            serverSocket.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
+    public Server(int port) throws IOException {
+        serverSocket = new ServerSocket(port);
+        System.out.println("Server je pokrenut na "+port);
     }
+
+    public PeerConnection acceptConnection() throws IOException {
+        Socket socket = serverSocket.accept();
+        System.out.println("Prihvaćen peer " + socket.getInetAddress().getHostAddress() + "  |  " + socket.getPort());
+
+        return new PeerConnection(socket);
+    }
+
+    @Override
+    public void close() throws IOException {
+        // TODO Auto-generated method stub
+        serverSocket.close();
+    }
+
 }
