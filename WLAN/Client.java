@@ -39,6 +39,10 @@ public class Client implements AutoCloseable{
     public NetworkMessage receive() throws IOException {
         return connection.receive();
     }
+    public PeerConnection getConnection() {
+        return connection;
+    }
+    
 
     @Override
     public void close() throws IOException { 
