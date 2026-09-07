@@ -269,10 +269,13 @@ public class Main_peer_to_peer {
             // za one kod kojih je handshake gotov staviti da slušaju PING PONG
             listenForMessages(connection, receivedMessage.getSenderNodeId());
 
+        } catch (SocketException e){
+            System.out.println("Peer se odspojio!");
         } catch (Exception e) {
             System.out.println("Greška tijekom komunikacije s peerom: " + e.getMessage());
             e.printStackTrace();
         }
+
     }
 
     private static void listenForMessages(PeerConnection connection, String peerNodeId) throws Exception {
