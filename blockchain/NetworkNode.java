@@ -416,6 +416,40 @@ public class NetworkNode implements AutoCloseable {
         }
     }
 
+    public void maintainConnection(String ipAddress, int port) {
+
+        Thread reconnectThread = new Thread(() -> {
+
+            while (running) {
+
+                if (!isConnectedTo(ipAddress)) {
+                    connectToPeer(ipAddress, port);
+                }
+
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
+
+        reconnectThread.setName("reconnect-" + ipAddress);
+        reconnectThread.start();
+    }
+
+    private boolean isConnectedTo(String ipAddress) {
+
+        for (PeerConnection connection : activePeers.values()) {
+            if (connection.getRemoteAddress().equals(ipAddress)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void sendReject(
             PeerConnection connection,
             NetworkMessage rejectedMessage,

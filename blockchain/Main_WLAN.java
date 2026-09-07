@@ -28,7 +28,7 @@ public class Main_WLAN {
         if (Ipconfig.PEER_IP != null
                 && !Ipconfig.PEER_IP.isBlank()
                 && !Ipconfig.PEER_IP.equals(Ipconfig.IP_OF_MY_PC)) {
-            node.connectToPeer(Ipconfig.PEER_IP, Ipconfig.PORT);
+            node.maintainConnection(Ipconfig.PEER_IP, Ipconfig.PORT);
         }
 
         System.out.println("Aktivnih peerova: " + node.getConnectedPeerCount());
