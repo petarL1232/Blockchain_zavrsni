@@ -268,6 +268,7 @@ public class NetworkNode implements AutoCloseable {
             System.out.println("Node type: " + peerInfo.getNodeType());
 
             sendCurrentState(connection); // ovo je inbound dio jer čeka da se netko spoji na naš node
+            requestChainIfPeerStronger(connection, peerInfo);
             listenForMessages(connection, peerNodeId);
 
         } catch (SocketException e) {
