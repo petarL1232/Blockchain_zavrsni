@@ -34,7 +34,7 @@ public class BlockChain_LightNodes {
         }
 
         public String calculateHash() {
-            return Block.calculateHeaderHash(height, previousHash, timestamp, merkleRoot, nonce);
+            return Block.calculateHeaderHash(height, previousHash, timestamp, merkleRoot, nonce, difficulty);
         }
 
     }
@@ -49,7 +49,7 @@ public class BlockChain_LightNodes {
             return false;
         }
 
-        if (!ConsensusRules.isHeaderHashValid(header.height,header.previousHash,header.timestamp,header.merkleRoot,header.nonce,header.blockHash)) {
+        if (!ConsensusRules.isHeaderHashValid(header.height,header.previousHash,header.timestamp,header.merkleRoot,header.nonce,header.blockHash,header.difficulty)) {
             return false;
         }
 

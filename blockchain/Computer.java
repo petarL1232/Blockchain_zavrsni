@@ -97,7 +97,7 @@ public class Computer implements Runnable {
     public void syncBlockchain() {
         if (uloga == NodeType.LIGHT) {
             for (Block block : blockchain.getChain()) {
-                if (!receiveBlockHeader(block, blockchain.getDifficulty())) {
+                if (!receiveBlockHeader(block, block.getDifficulty())) {
                     System.out.println("LIGHT node odbio header bloka: " + block.index);
                     return;
                 }

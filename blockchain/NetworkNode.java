@@ -1,4 +1,3 @@
-
 import WLAN.HelloPayload;
 import WLAN.Client;
 import WLAN.HelloAckPayload;
@@ -10,6 +9,11 @@ import WLAN.PingPayload;
 import WLAN.PongPayload;
 import WLAN.RejectPayload;
 import WLAN.Server;
+import WLAN.TransactionPayload;
+import WLAN.WalletPayload;
+import WLAN.BlockPayload;
+import WLAN.ChainResponsePayload;
+import WLAN.GetChainPayload;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -17,10 +21,13 @@ import java.io.IOException;
 import java.net.SocketException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean; //peak
 
 public class NetworkNode implements AutoCloseable {
 
     private static final long PING_INTERVAL = 5000;
+    private static final long MINING_IDLE_WAIT = 1000L;
 
     private final String nodeId;
     private final Computer.NodeType nodeType;
@@ -31,6 +38,7 @@ public class NetworkNode implements AutoCloseable {
     private final Map<String, PeerConnection> activePeers = new ConcurrentHashMap<>();
 
     private volatile boolean running;
+    private final AtomicBoolean miningLoopStarted = new AtomicBoolean(false);
     private Server server;
 
     public NetworkNode(
@@ -170,6 +178,7 @@ public class NetworkNode implements AutoCloseable {
             System.out.println("Spojen node: " + peerNodeId);
             System.out.println("Node type: " + peerInfo.getNodeType());
 
+            sendCurrentState(connection); // ovo je outbound dio jer naš node šalje konekciju da se spoji na njega
             startPeerListener(connection, peerNodeId);
 
         } catch (Exception e) {
@@ -257,6 +266,7 @@ public class NetworkNode implements AutoCloseable {
             System.out.println("Prihvaćen node: " + peerNodeId);
             System.out.println("Node type: " + peerInfo.getNodeType());
 
+            sendCurrentState(connection); // ovo je inbound dio jer čeka da se netko spoji na naš node
             listenForMessages(connection, peerNodeId);
 
         } catch (SocketException e) {
@@ -317,10 +327,18 @@ public class NetworkNode implements AutoCloseable {
 
             if (message.getType() == MessageType.PING) {
                 handlePing(connection, message, peerNodeId);
-
             } else if (message.getType() == MessageType.PONG) {
                 handlePong(message, peerNodeId);
-
+            } else if (message.getType() == MessageType.WALLET) {
+                handleWallet(message, peerNodeId);
+            } else if (message.getType() == MessageType.TRANSACTION) {
+                handleTransaction(message, peerNodeId);
+            } else if (message.getType() == MessageType.BLOCK) {
+                handleBlock(message, peerNodeId);
+            } else if (message.getType() == MessageType.GET_CHAIN) {
+                handleGetChain(connection, message);
+            } else if (message.getType() == MessageType.CHAIN_RESPONSE) {
+                handleChainResponse(message, peerNodeId);
             } else if (message.getType() == MessageType.REJECT) {
                 RejectPayload rejectPayload = MessageCodec.payloadAsPayloadTypeIWant(
                         message,
@@ -340,6 +358,195 @@ public class NetworkNode implements AutoCloseable {
                         "Ova vrsta poruke još nije implementirana.");
             }
         }
+    }
+
+    private void requestFullChain(String peerNodeId) {
+
+        PeerConnection connection = activePeers.get(peerNodeId);
+
+        if (connection == null) {
+            return;
+        }
+
+        try {
+            NetworkMessage request = MessageCodec.createMessage(
+                    MessageType.GET_CHAIN,
+                    nodeId,
+                    null,
+                    new GetChainPayload(0));
+
+            connection.send(request);
+
+        } catch (IOException e) {
+            System.out.println(
+                    "Ne mogu zatražiti chain od: "
+                            + peerNodeId);
+        }
+    }
+
+    private void handleGetChain(
+            PeerConnection connection,
+            NetworkMessage message) throws IOException {
+
+        GetChainPayload request = MessageCodec.payloadAsPayloadTypeIWant(
+                message,
+                GetChainPayload.class);
+
+        ArrayList<Block> chainSnapshot = blockchain.getChainSnapshot();
+
+        int fromHeight = request.getFromHeight();
+
+        if (fromHeight < 0 || fromHeight > chainSnapshot.size()) {
+            sendReject(
+                    connection,
+                    message,
+                    "INVALID_HEIGHT",
+                    "Traženi chain height nije valjan.");
+
+            return;
+        }
+
+        ArrayList<BlockPayload> blocks = new ArrayList<>();
+
+        for (int i = fromHeight; i < chainSnapshot.size(); i++) {
+            blocks.add(
+                    NetworkMapper.blockToPayload(chainSnapshot.get(i)));
+        }
+
+        ChainResponsePayload responsePayload = new ChainResponsePayload(
+                fromHeight,
+                blocks,
+                blockchain.getCumulativeWork().toString());
+
+        NetworkMessage response = MessageCodec.createMessage(
+                MessageType.CHAIN_RESPONSE,
+                nodeId,
+                message.getMessageId(),
+                responsePayload);
+
+        connection.send(response);
+    }
+
+    private void handleChainResponse(
+            NetworkMessage message,
+            String peerNodeId) {
+
+        ChainResponsePayload payload = MessageCodec.payloadAsPayloadTypeIWant(
+                message,
+                ChainResponsePayload.class);
+
+        /*
+         * Za prvi WLAN sync tražimo cijeli chain.
+         * Kasnije možemo efikasno slati samo nedostajuće blokove.
+         */
+        if (payload.getStartHeight() != 0
+                || payload.getBlocks() == null
+                || payload.getBlocks().isEmpty()) {
+
+            return;
+        }
+
+        ArrayList<Block> candidateChain = new ArrayList<>();
+
+        try {
+            for (BlockPayload blockPayload : payload.getBlocks()) {
+                candidateChain.add(
+                        NetworkMapper.payloadToBlock(blockPayload));
+            }
+
+            BigInteger calculatedWork = BlockChain.calculateCumulativeWork(candidateChain);
+
+            BigInteger claimedWork = new BigInteger(payload.getCumulativeWork());
+
+            if (!calculatedWork.equals(claimedWork)) {
+                System.out.println(
+                        "Peer "
+                                + peerNodeId
+                                + " laže o cumulative worku.");
+
+                return;
+            }
+
+        } catch (Exception e) {
+            System.out.println(
+                    "Neispravan chain response od "
+                            + peerNodeId
+                            + ": "
+                            + e.getMessage());
+
+            return;
+        }
+
+        if (!blockchain.replaceChainIfStronger(candidateChain)) {
+            return;
+        }
+
+        BlockPayload newTip = payload
+                .getBlocks()
+                .get(payload.getBlocks().size() - 1);
+
+        broadcastMessage(
+                MessageType.BLOCK,
+                newTip,
+                peerNodeId);
+    }
+
+    private void handleBlock(NetworkMessage message, String peerNodeId) {
+
+        BlockPayload payload;
+
+        try {
+            payload = MessageCodec.payloadAsPayloadTypeIWant(message,BlockPayload.class);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Peer " + peerNodeId + " poslao je neispravan block payload.");
+            return;
+        }
+
+        /*if (payload.getDifficulty() != blockchain.getDifficulty()) {
+            System.out.println(
+                    "Blok od "
+                            + peerNodeId
+                            + " koristi pogrešan difficulty.");
+
+            return;
+        }*/
+
+        if (blockchain.hasBlockHash(payload.getHash())) {
+            return;
+        }
+
+        Block receivedBlock;
+
+        try {
+            receivedBlock = NetworkMapper.payloadToBlock(payload);
+        } catch (IllegalArgumentException e) {
+            System.out.println(
+                    "Blok od "
+                            + peerNodeId
+                            + " nije moguće pretvoriti: "
+                            + e.getMessage());
+
+            return;
+        }
+
+        if (!blockchain.receiveBlock(receivedBlock)) {
+            System.out.println("Blok od " + peerNodeId + " nije prihvaćen.");
+            requestFullChain(peerNodeId); // trazi full chain jer je mozda fork potrebno napravit
+            return;
+        }
+
+        System.out.println(
+                "Prihvaćen block #"
+                        + receivedBlock.index
+                        + " od nodea "
+                        + peerNodeId
+                        + " | "
+                        + receivedBlock.hash);
+
+        broadcastMessage(
+                MessageType.BLOCK,
+                payload,
+                peerNodeId);
     }
 
     private void handlePing(
@@ -413,6 +620,176 @@ public class NetworkNode implements AutoCloseable {
                     closeQuietly(connection);
                 }
             }
+        }
+    }
+
+    public Wallet registerWallet(long initialBalance) {
+
+        if (initialBalance < 0L) {
+            throw new IllegalArgumentException("Početni balance ne smije biti negativan.");
+        }
+
+        Wallet wallet = blockchain.registerWallet();
+
+        if (initialBalance > 0L) {
+            blockchain.addInitialBalance(wallet.getAddress(), initialBalance);
+        }
+
+        WalletPayload payload = new WalletPayload(
+                wallet.getAddress(),
+                wallet.getPublicKeyString(),
+                initialBalance);
+
+        broadcastMessage(MessageType.WALLET, payload, null);
+
+        return wallet;
+    }
+
+    public boolean submitTransaction(Transactions transaction) {
+
+        if (!blockchain.addPendingTransaction(transaction)) {
+            return false;
+        }
+
+        TransactionPayload payload = NetworkMapper.transactionToPayload(transaction);
+        broadcastMessage(MessageType.TRANSACTION, payload, null);
+
+        return true;
+    }
+
+    private void handleWallet(NetworkMessage message, String peerNodeId) {
+
+        WalletPayload payload = MessageCodec.payloadAsPayloadTypeIWant(
+                message,
+                WalletPayload.class);
+
+        boolean added = blockchain.registerNetworkWallet(
+                payload.getAddress(),
+                payload.getPublicKey(),
+                payload.getInitialBalance());
+
+        if (!added) {
+            return;
+        }
+
+        System.out.println(
+                "Wallet primljen od "
+                        + peerNodeId
+                        + ": "
+                        + payload.getAddress());
+
+        broadcastMessage(MessageType.WALLET, payload, peerNodeId);
+    }
+
+    private void handleTransaction(NetworkMessage message, String peerNodeId) {
+
+        TransactionPayload payload = MessageCodec.payloadAsPayloadTypeIWant(
+                message,
+                TransactionPayload.class);
+
+        Transactions transaction;
+
+        try {
+            transaction = NetworkMapper.payloadToTransactions(payload);
+        } catch (IllegalArgumentException e) {
+            System.out.println(
+                    "Peer "
+                            + peerNodeId
+                            + " poslao je neispravan transaction payload: "
+                            + e.getMessage());
+
+            return;
+        }
+
+        if (!blockchain.addPendingTransaction(transaction)) {
+            return;
+        }
+
+        System.out.println(
+                "Transakcija primljena od "
+                        + peerNodeId
+                        + ": "
+                        + transaction.getSender()
+                        + " -> "
+                        + transaction.getReceiver()
+                        + " | "
+                        + Money.format(transaction.getAmount()));
+
+        broadcastMessage(
+                MessageType.TRANSACTION,
+                payload,
+                peerNodeId);
+    }
+
+    private void broadcastMessage(
+            MessageType type,
+            Object payload,
+            String excludedPeerNodeId) {
+
+        for (Map.Entry<String, PeerConnection> peer : activePeers.entrySet()) {
+
+            if (peer.getKey().equals(excludedPeerNodeId)) {
+                continue;
+            }
+
+            try {
+                NetworkMessage message = MessageCodec.createMessage(
+                        type,
+                        nodeId,
+                        null,
+                        payload);
+
+                peer.getValue().send(message);
+
+            } catch (IOException e) {
+                System.out.println(
+                        "Slanje poruke nodeu "
+                                + peer.getKey()
+                                + " nije uspjelo.");
+
+                PeerConnection connection = peer.getValue();
+                activePeers.remove(peer.getKey(), connection);
+                closeQuietly(connection);
+            }
+        }
+    }
+
+    private void sendCurrentState(PeerConnection connection) throws IOException {
+
+        ArrayList<PublicWallet> wallets;
+
+        synchronized (blockchain) {
+            wallets = new ArrayList<>(
+                    blockchain.getPublicWalletRegistry().values());
+        }
+
+        for (PublicWallet wallet : wallets) {
+
+            WalletPayload walletPayload = new WalletPayload(
+                    wallet.getAddress(),
+                    wallet.getPublicKey(),
+                    blockchain.getInitialBalance(wallet.getAddress()));
+
+            NetworkMessage walletMessage = MessageCodec.createMessage(
+                    MessageType.WALLET,
+                    nodeId,
+                    null,
+                    walletPayload);
+
+            connection.send(walletMessage);
+        }
+
+        List<Transactions> pendingTransactions = blockchain.getTransactionPoolSnapshot();
+
+        for (Transactions transaction : pendingTransactions) {
+
+            NetworkMessage transactionMessage = MessageCodec.createMessage(
+                    MessageType.TRANSACTION,
+                    nodeId,
+                    null,
+                    NetworkMapper.transactionToPayload(transaction));
+
+            connection.send(transactionMessage);
         }
     }
 
@@ -525,7 +902,7 @@ public class NetworkNode implements AutoCloseable {
                 calculateCumulativeWork());
     }
 
-    private String calculateCumulativeWork() {
+    private String calculateCumulativeWorkIfSameDifficultyEverywhere() {
 
         int minedBlocks = Math.max(0, blockchain.getChain().size() - 1); // genesis se ne racuna
         BigInteger workPerBlock = BigInteger.ONE.shiftLeft(blockchain.getDifficulty() * 4); // * 4 zato što jedna hex 0
@@ -539,6 +916,10 @@ public class NetworkNode implements AutoCloseable {
         return workPerBlock.multiply(BigInteger.valueOf(minedBlocks)).toString();
     }
 
+    private String calculateCumulativeWork() {
+        return blockchain.getCumulativeWork().toString();
+    }
+
     private void closeQuietly(PeerConnection connection) {
 
         if (connection == null) {
@@ -549,6 +930,71 @@ public class NetworkNode implements AutoCloseable {
             connection.close();
         } catch (IOException ignored) {
 
+        }
+    }
+
+    public void startMining(String minerAddress) {
+
+        if (nodeType != Computer.NodeType.MINER) {
+            throw new IllegalStateException("Samo MINER node može pokrenuti rudarenje.");
+        }
+
+        if (!blockchain.getPublicWalletRegistry().containsKey(minerAddress)) {
+            throw new IllegalArgumentException("Miner wallet nije registriran.");
+        }
+
+        if (!miningLoopStarted.compareAndSet(false, true)) {
+            return;
+        }
+
+        Thread miningThread = new Thread(() -> miningLoop(minerAddress));
+        miningThread.setName("miner-" + nodeId);
+        miningThread.start();
+    }
+
+    private void miningLoop(String minerAddress) {
+
+        while (running) {
+
+            if (!blockchain.hasPendingTransactions()) {
+
+                try {
+                    Thread.sleep(MINING_IDLE_WAIT);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+                continue;
+            }
+
+            System.out.println(
+                    "Miner "
+                            + nodeId
+                            + " započinje rudarenje jer mempool nije prazan.");
+
+            Block minedBlock = blockchain.minePendingTransactionsForNetwork(
+                    minerAddress);
+
+            if (minedBlock == null) {
+                System.out.println(
+                        "Miner "
+                                + nodeId
+                                + " je izgubio mining utrku.");
+
+                continue;
+            }
+
+            BlockPayload payload = NetworkMapper.blockToPayload(minedBlock);
+            broadcastMessage(
+                    MessageType.BLOCK,
+                    payload,
+                    null);
+
+            System.out.println(
+                    "Block #"
+                            + minedBlock.index
+                            + " poslan cijeloj mreži.");
         }
     }
 

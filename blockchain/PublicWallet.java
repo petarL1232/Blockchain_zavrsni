@@ -29,6 +29,9 @@ public class PublicWallet {
     public synchronized void decreaseBalance(long amount) {
         balance = Math.subtractExact(balance, amount);
     }
+    synchronized void setBalance(long balance) {
+        this.balance = balance;
+    }
 
 
 }

@@ -13,5 +13,6 @@ public enum MessageType {
     PEERS, // odgovor na get peers - vraća nodeove koje još poznaje
     GET_MERKLE_PROOF, // dokaži mi da je ova transakcija u određenom bloku
     MERKLE_PROOF, // odgovor na get merkle proof - vraca hasheove potrebne za merkle stablo
+    WALLET, // javni novčanik se šalje (trebaju svi poslati da bih se napravile transakcije)
     REJECT // poruka je primljena, ali odbijena
 }

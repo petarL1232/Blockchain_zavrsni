@@ -1,9 +1,13 @@
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.math.BigInteger;
+import java.util.LinkedHashMap; // za fork
 
 public class BlockChain {
     private ArrayList<Block> chain;
@@ -74,7 +78,7 @@ public class BlockChain {
     private Block createGenesisBlock() {
         List<Transactions> prvaTransakcija = new ArrayList<>();
         Block genesisBlock = new Block(GENESIS_INDEX, GENESIS_PREVIOUS_HASH, GENESIS_TIMESTAMP, prvaTransakcija,
-                GENESIS_NONCE);
+                GENESIS_NONCE, 0);
         return genesisBlock;
     }
 
@@ -116,13 +120,74 @@ public class BlockChain {
         }
     }
 
+    /*
+     * public synchronized boolean receiveBlock(Block receivedBlock) {
+     * 
+     * int chainSizeBefore = chain.size();
+     * 
+     * addBlock(receivedBlock);
+     * 
+     * return chain.size() == chainSizeBefore + 1;
+     * }
+     */
     public synchronized boolean receiveBlock(Block receivedBlock) {
 
         int chainSizeBefore = chain.size();
 
         addBlock(receivedBlock);
 
-        return chain.size() == chainSizeBefore + 1;
+        boolean blockAccepted = chain.size() == chainSizeBefore + 1;
+
+        if (blockAccepted) {
+            refreshTransactionPoolAfterBlock(receivedBlock);
+        }
+
+        return blockAccepted;
+    }
+
+    private void refreshTransactionPoolAfterBlock(Block receivedBlock) {
+
+        synchronized (transactionPoolLock) {
+            Set<String> confirmedTransactionIds = new HashSet<>(); // ne dopušta duplikate zbog toga je korisno
+
+            for (Transactions transaction : receivedBlock.getTransactions()) {
+                if (!transaction.isSystemTransaction()) {
+                    confirmedTransactionIds.add(transaction.getHash());
+                }
+            }
+            transactionPool.removeIf(transaction -> confirmedTransactionIds.contains(transaction.getHash()));
+
+            Map<String, Long> temporaryBalances = createBalanceSnapshot(); // dict
+            ArrayList<Transactions> validPendingTransactions = new ArrayList<>();
+
+            for (Transactions transaction : transactionPool) {
+
+                if (isTransactionValidForMempool(transaction)
+                        && applyTransactionToTemporaryBalances(transaction, temporaryBalances)) {
+
+                    validPendingTransactions.add(transaction);
+                } else {
+                    System.out.println("Transakcija izbačena iz mempoola nakon novog bloka: " + transaction.getHash());
+                }
+            }
+            transactionPool.clear();
+            transactionPool.addAll(validPendingTransactions);
+        }
+    }
+
+    public synchronized boolean hasBlockHash(String blockHash) {
+
+        if (blockHash == null) {
+            return false;
+        }
+
+        for (Block block : chain) {
+            if (blockHash.equals(block.hash)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private synchronized boolean tryAddMinedBlock(Block newBlock, String parentHash, int miningDifficulty,
@@ -160,7 +225,7 @@ public class BlockChain {
     }
 
     private boolean isBlockValid(Block newBlock) {
-        // 5 provjera radimo
+        // 6 provjera radimo
 
         // 1. je li ulančano uopće
         if (!ConsensusRules.isBlockLinkedTo(newBlock, getLatestBlock())) {
@@ -177,6 +242,12 @@ public class BlockChain {
         // 3. je li osoba izračunala dobro hash ili je dala neki random sa puno nula
         if (!ConsensusRules.isBlockHashValid(newBlock)) {
             System.out.println("random hash");
+            return false;
+        }
+
+        // 6. difficulty jel laže
+        if (newBlock.getDifficulty() != difficulty) {
+            System.out.println("Difficulty bloka nije očekivani network difficulty.");
             return false;
         }
 
@@ -423,7 +494,7 @@ public class BlockChain {
                 return false;
             }
 
-            if (!ConsensusRules.isProofOfWorkValid(current, difficulty)) {
+            if (!ConsensusRules.isProofOfWorkValid(current, current.getDifficulty())) {
                 System.out.println("Proof-of-Work bloka " + i + " nije valjan.");
                 return false;
             }
@@ -448,6 +519,203 @@ public class BlockChain {
         return true;
     }
 
+    public synchronized BigInteger getCumulativeWork() {
+        return calculateCumulativeWork(chain);
+    }
+
+    public static BigInteger calculateCumulativeWork(
+            List<Block> blocks) {
+
+        BigInteger cumulativeWork = BigInteger.ZERO;
+
+        if (blocks == null) {
+            return cumulativeWork;
+        }
+
+        for (int i = 1; i < blocks.size(); i++) {
+
+            int blockDifficulty = blocks.get(i).getDifficulty();
+
+            if (blockDifficulty < 1 || blockDifficulty > 64) {
+                throw new IllegalArgumentException(
+                        "Block ima neispravan difficulty.");
+            }
+
+            BigInteger blockWork = BigInteger.ONE.shiftLeft(
+                    blockDifficulty * 4);
+
+            cumulativeWork = cumulativeWork.add(blockWork);
+        }
+
+        return cumulativeWork;
+    }
+
+    public synchronized ArrayList<Block> getChainSnapshot() {
+        return new ArrayList<>(chain);
+    }
+
+    public synchronized boolean replaceChainIfStronger(
+            List<Block> candidateChain) {
+
+        Map<String, Long> candidateBalances = validateAndReplayCandidateChain(candidateChain);
+
+        if (candidateBalances == null) {
+            System.out.println("Primljeni candidate chain nije valjan.");
+            return false;
+        }
+
+        BigInteger currentWork = calculateCumulativeWork(chain);
+        BigInteger candidateWork = calculateCumulativeWork(candidateChain);
+
+        if (candidateWork.compareTo(currentWork) <= 0) {
+            return false;
+        }
+
+        Set<String> candidateTransactionIds = new HashSet<>();
+
+        for (Block block : candidateChain) {
+            for (Transactions transaction : block.getTransactions()) {
+                if (!transaction.isSystemTransaction()) {
+                    candidateTransactionIds.add(transaction.getHash());
+                }
+            }
+        }
+
+        LinkedHashMap<String, Transactions> possiblePendingTransactions = new LinkedHashMap<>();
+
+        synchronized (transactionPoolLock) {
+            for (Transactions transaction : transactionPool) {
+                possiblePendingTransactions.put(
+                        transaction.getHash(),
+                        transaction);
+            }
+        }
+
+        /*
+         * Transakcije iz napuštenog forka koje nisu u pobjedničkom
+         * chainu vraćamo u mempool ako su još valjane.
+         */
+        for (Block oldBlock : chain) {
+            for (Transactions transaction : oldBlock.getTransactions()) {
+
+                if (!transaction.isSystemTransaction()
+                        && !candidateTransactionIds.contains(transaction.getHash())) {
+
+                    possiblePendingTransactions.putIfAbsent(
+                            transaction.getHash(),
+                            transaction);
+                }
+            }
+        }
+
+        chain = new ArrayList<>(candidateChain);
+
+        for (Map.Entry<String, PublicWallet> entry : publicWalletRegistry.entrySet()) {
+
+            long newBalance = candidateBalances.getOrDefault(
+                    entry.getKey(),
+                    0L);
+
+            entry.getValue().setBalance(newBalance);
+        }
+
+        synchronized (transactionPoolLock) {
+
+            transactionPool.clear();
+
+            Map<String, Long> temporaryBalances = createBalanceSnapshot();
+
+            for (Transactions transaction : possiblePendingTransactions.values()) {
+
+                if (candidateTransactionIds.contains(transaction.getHash())) {
+                    continue;
+                }
+
+                if (isTransactionValidForMempool(transaction)
+                        && applyTransactionToTemporaryBalances(
+                                transaction,
+                                temporaryBalances)) {
+
+                    transactionPool.add(transaction);
+                }
+            }
+        }
+
+        if (chain.size() > 1) {
+            difficulty = getLatestBlock().getDifficulty();
+        }
+
+        System.out.println(
+                "Prebačeno na jači chain. Novi cumulative work: "
+                        + candidateWork);
+
+        return true;
+    }
+
+    private Map<String, Long> validateAndReplayCandidateChain(
+            List<Block> candidateChain) {
+
+        if (candidateChain == null || candidateChain.isEmpty()) {
+            return null;
+        }
+
+        Block candidateGenesis = candidateChain.get(0);
+        Block ownGenesis = chain.get(0);
+
+        if (!ownGenesis.hash.equals(candidateGenesis.hash)
+                || candidateGenesis.index != 0
+                || !"0".equals(candidateGenesis.previousHash)
+                || !candidateGenesis.getTransactions().isEmpty()
+                || !ConsensusRules.isMerkleRootValid(candidateGenesis)
+                || !ConsensusRules.isBlockHashValid(candidateGenesis)) {
+
+            return null;
+        }
+
+        Map<String, Long> replayBalances = new HashMap<>(initialBalances);
+
+        for (int i = 1; i < candidateChain.size(); i++) {
+
+            Block current = candidateChain.get(i);
+            Block previous = candidateChain.get(i - 1);
+
+            if (current.index != i) {
+                return null;
+            }
+
+            if (current.getDifficulty() < 1
+                    || current.getDifficulty() > 64) {
+
+                return null;
+            }
+
+            /*
+             * Difficulty se smije mijenjati postupno.
+             * Točan automatski retarget možemo dodati kasnije.
+             */
+            if (i > 1
+                    && Math.abs(
+                            current.getDifficulty()
+                                    - previous.getDifficulty()) > 1) {
+
+                return null;
+            }
+
+            if (!ConsensusRules.isBlockLinkedTo(current, previous)
+                    || !ConsensusRules.isMerkleRootValid(current)
+                    || !ConsensusRules.isBlockHashValid(current)
+                    || !ConsensusRules.isProofOfWorkValid(
+                            current,
+                            current.getDifficulty())
+                    || !transactionsCheck(current, replayBalances)) {
+
+                return null;
+            }
+        }
+
+        return replayBalances;
+    }
+
     public synchronized ArrayList<Block> getChain() {
         return new ArrayList<>(chain);
     }
@@ -461,6 +729,11 @@ public class BlockChain {
     }
 
     public synchronized void setDifficulty(int difficulty) {
+        if (difficulty < 1 || difficulty > 64) { // zbog SHA256
+            throw new IllegalArgumentException(
+                    "Difficulty mora biti između 1 i 64.");
+        }
+
         this.difficulty = difficulty;
     }
 
@@ -617,7 +890,8 @@ public class BlockChain {
                     parentHash,
                     System.currentTimeMillis(),
                     approvedTransactions,
-                    0);
+                    0,
+                    miningDifficulty);
 
             /*
              * Nema synchronized:
@@ -680,8 +954,7 @@ public class BlockChain {
 
                     indexTx++;
                 }
-            }
-            else {
+            } else {
                 System.out.println("todo da lightnodeovi rade nekako");
             }
 
@@ -741,6 +1014,85 @@ public class BlockChain {
 
         // mora biti >= 2/3 validatora
         return ConsensusRules.hasEnoughApprovals(approvals, ukupno);
+    }
+
+    public synchronized boolean registerNetworkWallet(
+            String address,
+            String publicKey,
+            long initialBalance) {
+
+        if (address == null || address.isBlank() || publicKey == null || publicKey.isBlank()) {
+            System.out.println("Network wallet nema adresu ili public key.");
+            return false;
+        }
+
+        if (initialBalance < 0L) {
+            System.out.println("Početni balance ne smije biti negativan.");
+            return false;
+        }
+
+        PublicWallet existingWallet = publicWalletRegistry.get(address);
+
+        if (existingWallet != null) {
+
+            Long existingInitialBalance = initialBalances.get(address);
+
+            if (!existingWallet.getPublicKey().equals(publicKey)
+                    || existingInitialBalance == null
+                    || existingInitialBalance != initialBalance) {
+
+                System.out.println("Primljeni wallet se ne podudara s postojećim walletom.");
+            }
+
+            return false;
+        }
+
+        if (chain.size() != 1) {
+            System.out.println("Novi početni wallet se ne može dodati nakon genesis faze.");
+            return false;
+        }
+
+        try {
+            PublicKey decodedPublicKey = Cryptography.stringToPublicKey(publicKey);
+            String calculatedAddress = Cryptography.generateAddress(decodedPublicKey);
+
+            if (!calculatedAddress.equals(address)) {
+                System.out.println("Wallet adresa ne odgovara javnom ključu.");
+                return false;
+            }
+
+        } catch (Exception e) {
+            System.out.println("Primljen je neispravan javni ključ.");
+            return false;
+        }
+
+        PublicWallet publicWallet = new PublicWallet(address, publicKey);
+        publicWallet.increaseBalance(initialBalance);
+
+        publicWalletRegistry.put(address, publicWallet);
+        initialBalances.put(address, initialBalance);
+        adresa_walleta.add(address);
+
+        System.out.println("Network wallet registriran: " + address);
+        return true;
+    }
+
+    public synchronized long getInitialBalance(String address) {
+
+        Long balance = initialBalances.get(address);
+
+        if (balance == null) {
+            throw new IllegalArgumentException("Wallet nema početni balance.");
+        }
+
+        return balance;
+    }
+
+    public List<Transactions> getTransactionPoolSnapshot() {
+
+        synchronized (transactionPoolLock) {
+            return new ArrayList<>(transactionPool);
+        }
     }
 
     public void printBlockchain() {

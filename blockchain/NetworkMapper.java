@@ -58,7 +58,7 @@ public final class NetworkMapper { // final !!
         return transaction;
     }
 
-    public static BlockPayload blockToPayload(Block block, int difficulty) {
+    public static BlockPayload blockToPayload(Block block) {
 
         if (block == null) {
             throw new IllegalArgumentException("Ne smije biti null block puff");
@@ -71,7 +71,7 @@ public final class NetworkMapper { // final !!
         }
 
         return new BlockPayload(block.index, block.previousHash, block.timestamp, transactionsPayloads, block.nonce,
-                block.hash, block.merkleRoot, difficulty);
+                block.hash, block.merkleRoot, block.getDifficulty());
 
     }
 
@@ -92,7 +92,8 @@ public final class NetworkMapper { // final !!
                 blockPayload.getPreviousHash(),
                 blockPayload.getTimestamp(),
                 transactions,
-                blockPayload.getNonce());
+                blockPayload.getNonce(),
+                blockPayload.getDifficulty());
 
         // tu su vrijednosti koje je peer stvarno poslao. Blockchain ih nakon toga mora
         // samostalno provjeriti.
