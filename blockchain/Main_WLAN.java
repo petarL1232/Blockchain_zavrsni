@@ -100,7 +100,7 @@ public class Main_WLAN {
                     String receiverAddress = commandParts[1];
                     long amount = Money.fromCoins(commandParts[2]);
 
-                    Transactions transaction = myWallet.createTransaction(
+                    Transactions transaction = blockchain.createTransaction(myWallet,
                             receiverAddress,
                             amount);
 

@@ -46,7 +46,7 @@ class BlockchainGUI_MINER extends JFrame {
                     throw new IllegalArgumentException("Iznos je premalen.");
                 }
                 //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + "")); ovo sada više ne treba to se radi u Wallet klasi
-                Transactions tx = wallet.createTransaction(receiver, amount);
+                Transactions tx = blockchain.createTransaction(wallet, receiver, amount);
                 blockchain.addPendingTransaction(tx);
             } catch (IllegalArgumentException | ArithmeticException exception) {
                 JOptionPane.showMessageDialog(this, "Neispravan iznos.");

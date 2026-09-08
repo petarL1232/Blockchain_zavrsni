@@ -38,7 +38,7 @@ class BlockchainGUI_LIGHT_FULL extends JFrame {
                     throw new IllegalArgumentException("Iznos je premalen.");
                 }
                 //String signature = wallet.signData(wallet.getAddress() + receiver + new String(amount + ""));
-                Transactions tx = wallet.createTransaction(receiver, amount);//new Transactions(wallet.getAddress(),wallet.getPublicKey(), receiver, amount, signature);
+                Transactions tx = blockchain.createTransaction(wallet, receiver, amount);//new Transactions(wallet.getAddress(),wallet.getPublicKey(), receiver, amount, signature);
                 blockchain.addPendingTransaction(tx);
             } catch (IllegalArgumentException | ArithmeticException exception) {
                 JOptionPane.showMessageDialog(this, "Neispravan iznos.");

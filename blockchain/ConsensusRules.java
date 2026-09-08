@@ -21,11 +21,14 @@ public final class ConsensusRules {
         if (tx.getAmount() < MIN_TRANSACTION_AMOUNT) {
             return false;
         }
+        if (tx.getNonce() < 0L) {
+            return false;
+        }
         return tx.verifySignature();
     }
 
     public static boolean isCoinbaseValid(Transactions tx, int transactionIndex,
-            Map<String, PublicWallet> walletRegistry) {
+            int blockIndex, Map<String, PublicWallet> walletRegistry) {
         if (tx == null || !tx.isSystemTransaction()) {
             return false;
         }
@@ -33,6 +36,9 @@ public final class ConsensusRules {
             return false;
         }
         if (tx.getSignature() != null) {
+            return false;
+        }
+        if (tx.getNonce() != blockIndex) {
             return false;
         }
         return walletRegistry.containsKey(tx.getReceiver());

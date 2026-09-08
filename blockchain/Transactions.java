@@ -9,6 +9,7 @@ public class Transactions {
     private String signature; // digitalni potpis u Base64
     private boolean isValid;
     private String senderPublicKey;
+    private long nonce;
 
     public enum TransactionType {
         REGULAR,
@@ -17,7 +18,7 @@ public class Transactions {
 
     private TransactionType type;
 
-    public Transactions(String sender, String senderPublicKey, String receiver, long amount, String signature) {
+    public Transactions(String sender, String senderPublicKey, String receiver, long amount, String signature, long nonce) {
         this.sender = sender;
         this.receiver = receiver;
         this.amount = amount;
@@ -25,10 +26,11 @@ public class Transactions {
         this.isValid = false;
         this.type = TransactionType.REGULAR;
         this.senderPublicKey = senderPublicKey;
+        this.nonce = nonce;
 
     }
 
-    private Transactions(String receiver, long amount) {
+    private Transactions(String receiver, long amount, long nonce) {
         this.sender = "COINBASE";
         this.receiver = receiver;
         this.amount = amount;
@@ -36,9 +38,10 @@ public class Transactions {
         this.isValid = true;
         this.type = TransactionType.SYSTEM;
         this.senderPublicKey = null; // nije potrebno to je system to ce svi potvrditi i sloziti se da zaslužuje nagradu osoba koja iskopa hopefully xD
+        this.nonce = nonce;
     }
-    public static Transactions createSystemTransaction(String receiver, long amount) {
-        return new Transactions(receiver, amount);
+    public static Transactions createSystemTransaction(String receiver, long amount, long nonce) {
+        return new Transactions(receiver, amount, nonce);
     }
 
 
@@ -56,6 +59,10 @@ public class Transactions {
 
     public long getAmount() {
         return amount;
+    }
+
+    public long getNonce() {
+        return nonce;
     }
 
     public String getSignature() {
@@ -102,17 +109,18 @@ public class Transactions {
                 + senderPublicKey
                 + receiver
                 + amount
+                + nonce
                 + signature
                 + type;
 
         return Cryptography.applySHA256(data);
     }
 
-    public static String buildSigningData(String sender, String senderPublicKey,String receiver, long amount) {
-        return sender + senderPublicKey + receiver + amount;
+    public static String buildSigningData(String sender, String senderPublicKey,String receiver, long amount, long nonce) {
+        return sender + senderPublicKey + receiver + amount + nonce;
     }
     public String getSigningData() {
-        return buildSigningData(sender, senderPublicKey, receiver, amount);
+        return buildSigningData(sender, senderPublicKey, receiver, amount, nonce);
     }
 
     public boolean verifySignature() {

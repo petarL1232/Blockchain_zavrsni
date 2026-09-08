@@ -107,7 +107,7 @@ public class BlockchainUIController {
     }
 
     private void submitDemoTransaction(Wallet sender, Wallet receiver, long amount) {
-        Transactions tx = sender.createTransaction(receiver.getAddress(),amount);
+        Transactions tx = blockchain.createTransaction(sender,receiver.getAddress(),amount);
         if(!blockchain.addPendingTransaction(tx)) {
             throw new IllegalStateException("Demo transakcija nije prihvaćena.");
         }
@@ -273,7 +273,7 @@ public class BlockchainUIController {
         }
         if(sender == null) return ActionResult.fail("Privatni wallet sendera nije dostupan.");
 
-        Transactions tx = sender.createTransaction(receiverAddress,amount);
+        Transactions tx = blockchain.createTransaction(sender,receiverAddress,amount);
         if(!blockchain.addPendingTransaction(tx)) {
             if(!automatic) addActivity("Transakcija je odbijena",labelFor(senderAddress) + " nema dovoljno slobodnih sredstava ili transakcija nije valjana.","danger");
             return ActionResult.fail("Blockchain je odbio transakciju.");

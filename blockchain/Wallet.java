@@ -75,12 +75,12 @@ public class Wallet {
         return Cryptography.publicKeyToString(publicKey);
     }
 
-    public Transactions createTransaction(String receiver, long amount) {
+    public Transactions createTransaction(String receiver, long amount, long nonce) {
         String publicKeyString = getPublicKeyString();
-        String data = Transactions.buildSigningData(address,publicKeyString,receiver,amount);
+        String data = Transactions.buildSigningData(address,publicKeyString,receiver,amount,nonce);
         String signature = signData(data);
 
-        return new Transactions(address,publicKeyString,receiver,amount,signature);
+        return new Transactions(address,publicKeyString,receiver,amount,signature,nonce);
     }
 
     public String getPrivateKeyString() {

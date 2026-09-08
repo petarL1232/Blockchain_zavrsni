@@ -28,7 +28,7 @@ public final class NetworkMapper { // final !!
         }
 
         return new TransactionPayload(transaction.getHash(), transaction.getSender(), transaction.getSenderPublicKey(),
-                transaction.getReceiver(), transaction.getAmount(), transaction.getSignature(), transactionType);
+                transaction.getReceiver(), transaction.getAmount(), transaction.getSignature(), transaction.getNonce(), transactionType);
 
     }
 
@@ -43,10 +43,10 @@ public final class NetworkMapper { // final !!
         if (("REGULAR".equals(transactionPayload.getTransactionType()))) {
             transaction = new Transactions(transactionPayload.getSender(), transactionPayload.getSenderPublicKey(),
                     transactionPayload.getReceiver(), transactionPayload.getAmount(),
-                    transactionPayload.getSignature());
+                    transactionPayload.getSignature(), transactionPayload.getNonce());
         } else if ("SYSTEM".equals(transactionPayload.getTransactionType())) {
             transaction = Transactions.createSystemTransaction(transactionPayload.getReceiver(),
-                    transactionPayload.getAmount()); // ovdje mozda umjesto amount staviti konstantu za system reward.. ipak ne
+                    transactionPayload.getAmount(), transactionPayload.getNonce()); // ovdje mozda umjesto amount staviti konstantu za system reward.. ipak ne
         } else {
             throw new IllegalArgumentException("NEpoznati transaction type");
         }

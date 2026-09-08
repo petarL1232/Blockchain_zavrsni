@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public class NetworkMessage {
 
-    public static final int CURRENT_PROTOCOL_VERSION = 1;
+    public static final int CURRENT_PROTOCOL_VERSION = 2;
 
     private int protocolVersion;
     private MessageType type;

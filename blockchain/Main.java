@@ -14,7 +14,7 @@ public class Main {
                 .getPrivateWalletRegistry()
                 .get(senderAddress);
 
-        Transactions transaction = senderWallet.createTransaction(
+        Transactions transaction = blockChain.createTransaction(senderWallet,
                 receiverAddress,
                 money);
 
