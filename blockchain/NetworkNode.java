@@ -179,6 +179,7 @@ public class NetworkNode implements AutoCloseable {
             System.out.println("Node type: " + peerInfo.getNodeType());
 
             sendCurrentState(connection); // ovo je outbound dio jer naš node šalje konekciju da se spoji na njega
+            requestChainIfPeerStronger(connection, peerInfo); // isto outbound
             startPeerListener(connection, peerNodeId);
 
         } catch (Exception e) {
@@ -496,20 +497,22 @@ public class NetworkNode implements AutoCloseable {
         BlockPayload payload;
 
         try {
-            payload = MessageCodec.payloadAsPayloadTypeIWant(message,BlockPayload.class);
+            payload = MessageCodec.payloadAsPayloadTypeIWant(message, BlockPayload.class);
         } catch (IllegalArgumentException e) {
             System.out.println("Peer " + peerNodeId + " poslao je neispravan block payload.");
             return;
         }
 
-        /*if (payload.getDifficulty() != blockchain.getDifficulty()) {
-            System.out.println(
-                    "Blok od "
-                            + peerNodeId
-                            + " koristi pogrešan difficulty.");
-
-            return;
-        }*/
+        /*
+         * if (payload.getDifficulty() != blockchain.getDifficulty()) {
+         * System.out.println(
+         * "Blok od "
+         * + peerNodeId
+         * + " koristi pogrešan difficulty.");
+         * 
+         * return;
+         * }
+         */
 
         if (blockchain.hasBlockHash(payload.getHash())) {
             return;
@@ -547,6 +550,41 @@ public class NetworkNode implements AutoCloseable {
                 MessageType.BLOCK,
                 payload,
                 peerNodeId);
+    }
+
+    private void requestChainIfPeerStronger(
+            PeerConnection connection,
+            HelloPayload peerInfo) throws IOException {
+
+        try {
+            BigInteger peerWork = new BigInteger(
+                    peerInfo.getCumulativeWork());
+
+            if (peerWork.signum() < 0) {
+                return;
+            }
+
+            if (peerWork.compareTo(
+                    blockchain.getCumulativeWork()) <= 0) {
+
+                return;
+            }
+
+            NetworkMessage request = MessageCodec.createMessage(
+                    MessageType.GET_CHAIN,
+                    nodeId,
+                    null,
+                    new GetChainPayload(0));
+
+            connection.send(request);
+
+            System.out.println(
+                    "Peer ima jači chain. Pokrenut GET_CHAIN.");
+
+        } catch (NumberFormatException e) {
+            System.out.println(
+                    "Peer je poslao neispravan cumulative work.");
+        }
     }
 
     private void handlePing(
