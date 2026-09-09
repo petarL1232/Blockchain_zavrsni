@@ -113,7 +113,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         addNavigation(rail,"NODE","N","Node");
 
         rail.add(Box.createVerticalGlue());
-        JLabel version = WlanTheme.label("WLAN\nv2",9,WlanTheme.MUTED);
+        JLabel version = WlanTheme.label("WLAN\nv2",11,WlanTheme.MUTED);
         version.setHorizontalAlignment(SwingConstants.CENTER);
         version.setAlignmentX(Component.CENTER_ALIGNMENT);
         rail.add(version);
@@ -157,7 +157,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand,BoxLayout.Y_AXIS));
         JLabel name = WlanTheme.title("MATHOSCOIN",20);
-        JLabel subtitle = WlanTheme.label("WLAN NODE CONTROL CENTER  /  MATH",10,WlanTheme.CYAN);
+        JLabel subtitle = WlanTheme.label("WLAN NODE CONTROL CENTER  /  MATH",11,WlanTheme.CYAN);
         brand.add(name);
         brand.add(Box.createVerticalStrut(2));
         brand.add(subtitle);
@@ -180,7 +180,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         toast.setOpaque(true);
         toast.setBackground(new Color(5,14,31));
         toast.setForeground(WlanTheme.MUTED);
-        toast.setFont(WlanTheme.font(Font.PLAIN,10));
+        toast.setFont(WlanTheme.font(Font.PLAIN,11));
         toast.setBorder(new EmptyBorder(5,94,6,12));
         return toast;
     }
@@ -273,7 +273,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         JPanel walletText = new JPanel();
         walletText.setOpaque(false);
         walletText.setLayout(new BoxLayout(walletText,BoxLayout.Y_AXIS));
-        walletText.add(WlanTheme.label("AVAILABLE BALANCE",9,WlanTheme.MUTED));
+        walletText.add(WlanTheme.label("AVAILABLE BALANCE",11,WlanTheme.MUTED));
         balanceValue = WlanTheme.title("— MATH",22);
         walletText.add(balanceValue);
         walletLine.add(walletText,BorderLayout.CENTER);
@@ -322,7 +322,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         autoText.setOpaque(false);
         autoText.setLayout(new BoxLayout(autoText,BoxLayout.Y_AXIS));
         autoText.add(WlanTheme.title("LOCAL AUTO MODE",12));
-        autoDescription = WlanTheme.label("Login required",10,WlanTheme.MUTED);
+        autoDescription = WlanTheme.label("Login required",11,WlanTheme.MUTED);
         autoText.add(autoDescription);
         autoLine.add(autoText,BorderLayout.CENTER);
         autoToggle = new WlanTheme.Toggle();
@@ -577,20 +577,20 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         text.setLayout(new BoxLayout(text,BoxLayout.Y_AXIS));
         text.add(WlanTheme.title(title,12));
         text.add(Box.createVerticalStrut(2));
-        text.add(WlanTheme.label(subtitle,9,WlanTheme.MUTED));
+        text.add(WlanTheme.label(subtitle,11,WlanTheme.MUTED));
         header.add(text,BorderLayout.WEST);
         return header;
     }
 
     private JLabel fieldLabel(String text) {
-        JLabel label = WlanTheme.label(text,9,WlanTheme.MUTED);
+        JLabel label = WlanTheme.label(text,11,WlanTheme.MUTED);
         label.setBorder(new EmptyBorder(0,1,5,0));
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
     }
 
     private JLabel badge(String text,Color color) {
-        JLabel badge = WlanTheme.label(text,9,color);
+        JLabel badge = WlanTheme.label(text,11,color);
         badge.setOpaque(true);
         badge.setBackground(WlanTheme.alpha(color,22));
         badge.setBorder(BorderFactory.createCompoundBorder(
@@ -603,9 +603,9 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         panel.setOpaque(false);
         JLabel dot = new JLabel("●");
         dot.setForeground(color);
-        dot.setFont(WlanTheme.font(Font.BOLD,9));
+        dot.setFont(WlanTheme.font(Font.BOLD,11));
         panel.add(dot);
-        panel.add(WlanTheme.label(text,8,WlanTheme.MUTED));
+        panel.add(WlanTheme.label(text,11,WlanTheme.MUTED));
         return panel;
     }
 
@@ -613,7 +613,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         JTextField field = new JTextField(value);
         field.setEditable(false);
         field.setForeground(WlanTheme.TEXT_SOFT);
-        field.setFont(WlanTheme.font(Font.PLAIN,10));
+        field.setFont(WlanTheme.font(Font.PLAIN,11));
         return field;
     }
 
@@ -641,7 +641,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         text.setOpaque(false);
         text.setLayout(new BoxLayout(text,BoxLayout.Y_AXIS));
         text.add(WlanTheme.title(title,9));
-        text.add(WlanTheme.label(value,9,WlanTheme.MUTED));
+        text.add(WlanTheme.label(value,11,WlanTheme.MUTED));
         panel.add(text,BorderLayout.CENTER);
         return panel;
     }
@@ -655,10 +655,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         table.setGridColor(WlanTheme.alpha(WlanTheme.BORDER,130));
         table.setRowHeight(42);
         table.setShowVerticalLines(false);
-        table.setFont(WlanTheme.font(Font.PLAIN,11));
+        table.setFont(WlanTheme.font(Font.PLAIN,12));
         table.getTableHeader().setBackground(WlanTheme.SURFACE_HIGH);
         table.getTableHeader().setForeground(WlanTheme.MUTED);
-        table.getTableHeader().setFont(WlanTheme.font(Font.BOLD,9));
+        table.getTableHeader().setFont(WlanTheme.font(Font.BOLD,11));
         table.getTableHeader().setPreferredSize(new Dimension(0,38));
         table.setDefaultRenderer(Object.class,new TransactionCellRenderer());
         table.setAutoCreateRowSorter(true);
@@ -781,7 +781,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             blockInspector.add(WlanTheme.label("Select a block.",11,WlanTheme.MUTED));
         } else {
             blockInspector.add(WlanTheme.title("BLOCK #" + selected.height,24));
-            blockInspector.add(WlanTheme.label(selected.height == 0 ? "DETERMINISTIC GENESIS" : "PROOF-OF-WORK ACCEPTED",9,
+            blockInspector.add(WlanTheme.label(selected.height == 0 ? "DETERMINISTIC GENESIS" : "PROOF-OF-WORK ACCEPTED",11,
                     selected.height == 0 ? WlanTheme.PURPLE : WlanTheme.SUCCESS));
             blockInspector.add(Box.createVerticalStrut(18));
             addInspectorValue(blockInspector,"HASH",selected.hash);
@@ -798,14 +798,14 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
     }
 
     private void addInspectorValue(JPanel panel,String label,String value) {
-        panel.add(WlanTheme.label(label,8,WlanTheme.MUTED));
+        panel.add(WlanTheme.label(label,11,WlanTheme.MUTED));
         JTextArea area = new JTextArea(value == null ? "—" : value);
         area.setEditable(false);
         area.setLineWrap(true);
         area.setWrapStyleWord(false);
         area.setOpaque(false);
         area.setForeground(WlanTheme.TEXT_SOFT);
-        area.setFont(WlanTheme.font(Font.PLAIN,10));
+        area.setFont(WlanTheme.font(Font.PLAIN,11));
         area.setBorder(new EmptyBorder(3,0,10,0));
         area.setMaximumSize(new Dimension(Integer.MAX_VALUE,52));
         panel.add(area);
@@ -865,10 +865,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             walletInspector.add(WlanTheme.label("No wallet selected.",11,WlanTheme.MUTED));
         } else {
             walletInspector.add(WlanTheme.title(wallet.local ? "YOUR WALLET" : wallet.label.toUpperCase(),20));
-            walletInspector.add(WlanTheme.label(wallet.local ? "LOCAL PRIVATE KEY AVAILABLE" : "REMOTE PUBLIC ACCOUNT",9,
+            walletInspector.add(WlanTheme.label(wallet.local ? "LOCAL PRIVATE KEY AVAILABLE" : "REMOTE PUBLIC ACCOUNT",11,
                     wallet.local ? WlanTheme.SUCCESS : WlanTheme.PURPLE));
             walletInspector.add(Box.createVerticalStrut(20));
-            walletInspector.add(WlanTheme.label("BALANCE",8,WlanTheme.MUTED));
+            walletInspector.add(WlanTheme.label("BALANCE",11,WlanTheme.MUTED));
             walletInspector.add(WlanTheme.title(Money.format(wallet.balance) + " MATH",25));
             walletInspector.add(Box.createVerticalStrut(18));
             addInspectorValue(walletInspector,"ADDRESS",wallet.address);
@@ -879,7 +879,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             hint.setWrapStyleWord(true);
             hint.setOpaque(false);
             hint.setForeground(WlanTheme.MUTED);
-            hint.setFont(WlanTheme.font(Font.PLAIN,9));
+            hint.setFont(WlanTheme.font(Font.PLAIN,11));
             hint.setMaximumSize(new Dimension(Integer.MAX_VALUE,42));
             walletInspector.add(hint);
         }
@@ -965,7 +965,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         fields.add(fieldLabel("PRIVATE LOGIN HASH"));
         fields.add(privateHash);
         fields.add(Box.createVerticalStrut(10));
-        fields.add(WlanTheme.label("This is an in-memory session identity. SQLite will make it survive restarts later.",9,WlanTheme.WARNING));
+        fields.add(WlanTheme.label("This is an in-memory session identity. SQLite will make it survive restarts later.",11,WlanTheme.WARNING));
         surface.add(fields,BorderLayout.CENTER);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));
@@ -1077,7 +1077,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             data.setLayout(new BoxLayout(data,BoxLayout.Y_AXIS));
             data.add(WlanTheme.label(WlanTheme.compact(block.hash,15),11,WlanTheme.TEXT_SOFT));
             data.add(Box.createVerticalStrut(4));
-            data.add(WlanTheme.label(block.transactionCount + " TX  ·  DIFF " + block.difficulty + "  ·  NONCE " + block.nonce,9,WlanTheme.MUTED));
+            data.add(WlanTheme.label(block.transactionCount + " TX  ·  DIFF " + block.difficulty + "  ·  NONCE " + block.nonce,11,WlanTheme.MUTED));
             add(data,BorderLayout.CENTER);
 
             JLabel status = badge(block.height == 0 ? "GENESIS" : "ACCEPTED",block.height == 0 ? WlanTheme.PURPLE : WlanTheme.SUCCESS);
@@ -1154,13 +1154,13 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             detail.setLineWrap(true);
             detail.setWrapStyleWord(true);
             detail.setForeground(WlanTheme.MUTED);
-            detail.setFont(WlanTheme.font(Font.PLAIN,9));
+            detail.setFont(WlanTheme.font(Font.PLAIN,11));
             detail.setRows(2);
             detail.setAlignmentX(Component.LEFT_ALIGNMENT);
             detail.setMaximumSize(new Dimension(Integer.MAX_VALUE,34));
             text.add(detail);
             add(text,BorderLayout.CENTER);
-            JLabel time = WlanTheme.label(new SimpleDateFormat("HH:mm:ss").format(new Date(activity.timestamp)),9,WlanTheme.MUTED);
+            JLabel time = WlanTheme.label(new SimpleDateFormat("HH:mm:ss").format(new Date(activity.timestamp)),11,WlanTheme.MUTED);
             add(time,BorderLayout.EAST);
         }
     }
@@ -1187,13 +1187,13 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         private MetricCard(String title,String initial,String detailText,Color accent) {
             super(new BorderLayout(),18);
             setBorder(new EmptyBorder(14,16,13,16));
-            JLabel titleLabel = WlanTheme.label(title,9,WlanTheme.MUTED);
+            JLabel titleLabel = WlanTheme.label(title,11,WlanTheme.MUTED);
             titleLabel.setIcon(new ColorDotIcon(accent,7));
             titleLabel.setIconTextGap(8);
             add(titleLabel,BorderLayout.NORTH);
             value = WlanTheme.title(initial,24);
             add(value,BorderLayout.CENTER);
-            detail = WlanTheme.label(detailText,9,WlanTheme.MUTED);
+            detail = WlanTheme.label(detailText,11,WlanTheme.MUTED);
             add(detail,BorderLayout.SOUTH);
         }
 
@@ -1257,7 +1257,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             g.setColor(selected ? WlanTheme.TEXT : WlanTheme.MUTED);
             FontMetrics symbolMetrics = g.getFontMetrics();
             g.drawString(symbol,(getWidth() - symbolMetrics.stringWidth(symbol)) / 2,25);
-            g.setFont(WlanTheme.font(Font.BOLD,8));
+            g.setFont(WlanTheme.font(Font.BOLD,9));
             FontMetrics labelMetrics = g.getFontMetrics();
             g.drawString(label.toUpperCase(),(getWidth() - labelMetrics.stringWidth(label.toUpperCase())) / 2,44);
             if(hasFocus()) {
@@ -1352,10 +1352,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
                 g.setColor(WlanTheme.PURPLE);
                 g.fillOval(px - 25,py - 25,50,50);
                 g.setColor(WlanTheme.TEXT);
-                g.setFont(WlanTheme.font(Font.BOLD,10));
+                g.setFont(WlanTheme.font(Font.BOLD,11));
                 String peer = String.format("P%02d",i + 1);
                 g.drawString(peer,px - g.getFontMetrics().stringWidth(peer) / 2,py + 4);
-                g.setFont(WlanTheme.font(Font.PLAIN,8));
+                g.setFont(WlanTheme.font(Font.PLAIN,11));
                 g.setColor(WlanTheme.MUTED);
                 String direct = "DIRECT";
                 g.drawString(direct,px - g.getFontMetrics().stringWidth(direct) / 2,py + 42);
@@ -1371,13 +1371,13 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             g.setFont(WlanTheme.font(Font.BOLD,14));
             String node = snapshot == null ? "NODE" : WlanTheme.compact(snapshot.nodeId,8);
             g.drawString(node,cx - g.getFontMetrics().stringWidth(node) / 2,cy - 5);
-            g.setFont(WlanTheme.font(Font.BOLD,9));
+            g.setFont(WlanTheme.font(Font.BOLD,11));
             String type = snapshot == null ? "STARTING" : snapshot.nodeType.name();
             g.setColor(WlanTheme.TEXT_SOFT);
             g.drawString(type,cx - g.getFontMetrics().stringWidth(type) / 2,cy + 15);
 
             if(peers == 0) {
-                g.setFont(WlanTheme.font(Font.PLAIN,10));
+                g.setFont(WlanTheme.font(Font.PLAIN,11));
                 g.setColor(WlanTheme.WARNING);
                 String scanning = "DISCOVERY ATTEMPT / MANUAL FALLBACK READY";
                 g.drawString(scanning,cx - g.getFontMetrics().stringWidth(scanning) / 2,cy + orbit + 35);
@@ -1419,7 +1419,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
                 g.setColor(WlanTheme.TEXT);
                 g.setFont(WlanTheme.font(Font.BOLD,13));
                 g.drawString("#" + block.height,x + 12,y + 23);
-                g.setFont(WlanTheme.font(Font.PLAIN,9));
+                g.setFont(WlanTheme.font(Font.PLAIN,11));
                 g.setColor(WlanTheme.TEXT_SOFT);
                 g.drawString(WlanTheme.compact(block.hash,6),x + 12,y + 44);
                 g.setColor(WlanTheme.MUTED);
@@ -1484,7 +1484,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             g.setFont(WlanTheme.font(Font.BOLD,13));
             g.setColor(WlanTheme.TEXT);
             g.drawString(!miner ? "MINING DISABLED" : active ? "HASHING NOW" : "MINER READY",tx,cy - 16);
-            g.setFont(WlanTheme.font(Font.PLAIN,9));
+            g.setFont(WlanTheme.font(Font.PLAIN,11));
             g.setColor(WlanTheme.MUTED);
             g.drawString(snapshot == null ? "Starting…" : snapshot.localBlocksMined + " blocks won locally",tx,cy + 4);
             g.drawString(snapshot == null ? "" : "Uptime " + duration(snapshot.uptime),tx,cy + 22);

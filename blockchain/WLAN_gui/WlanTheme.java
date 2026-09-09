@@ -28,9 +28,9 @@ public final class WlanTheme {
     public static void install() {
         UIManager.put("Panel.background",BACKGROUND);
         UIManager.put("Label.foreground",TEXT);
-        UIManager.put("Label.font",font(Font.PLAIN,13));
-        UIManager.put("Button.font",font(Font.BOLD,12));
-        UIManager.put("TextField.font",font(Font.PLAIN,13));
+        UIManager.put("Label.font",font(Font.PLAIN,14));
+        UIManager.put("Button.font",font(Font.BOLD,13));
+        UIManager.put("TextField.font",font(Font.PLAIN,14));
         UIManager.put("TextField.background",SURFACE_HIGH);
         UIManager.put("TextField.foreground",TEXT);
         UIManager.put("TextField.caretForeground",CYAN);
@@ -167,7 +167,7 @@ public final class WlanTheme {
             super(text);
             this.filled = filled;
             setForeground(TEXT);
-            setFont(font(Font.BOLD,12));
+            setFont(font(Font.BOLD,13));
             setBorder(new EmptyBorder(10,16,10,16));
             setContentAreaFilled(false);
             setFocusPainted(false);

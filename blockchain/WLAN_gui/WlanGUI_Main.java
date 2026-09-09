@@ -42,12 +42,12 @@ public class WlanGUI_Main {
         private final JTextField portField = field("5000");
         private final JTextField peerIpField = field("");
         private final JTextField peerPortField = field("5000");
-        private final JLabel feedback = WlanTheme.label("UDP discovery je konfiguriran · ručni peer nije obavezan",11,WlanTheme.MUTED);
+        private final JTextArea feedback = feedbackArea();
         private final WlanTheme.AccentButton startButton = new WlanTheme.AccentButton("START WLAN NODE  →",true);
         private final ButtonGroup typeGroup = new ButtonGroup();
-        private final NodeTypeButton fullButton = new NodeTypeButton("FULL","Validira i čuva cijeli chain",Computer.NodeType.FULL);
-        private final NodeTypeButton minerButton = new NodeTypeButton("MINER","Natječe se za nove blokove",Computer.NodeType.MINER);
-        private final NodeTypeButton lightButton = new NodeTypeButton("LIGHT","Prati headere i Merkle dokaze",Computer.NodeType.LIGHT);
+        private final NodeTypeButton fullButton = new NodeTypeButton("FULL","Čuva cijeli chain",Computer.NodeType.FULL);
+        private final NodeTypeButton minerButton = new NodeTypeButton("MINER","Kopa nove blokove",Computer.NodeType.MINER);
+        private final NodeTypeButton lightButton = new NodeTypeButton("LIGHT","Provjerava headere",Computer.NodeType.LIGHT);
 
         private NodeLaunchPanel(JFrame frame,AtomicReference<WlanDashboard> dashboard) {
             super(new BorderLayout());
@@ -76,23 +76,32 @@ public class WlanGUI_Main {
             copy.setOpaque(false);
             copy.setLayout(new BoxLayout(copy,BoxLayout.Y_AXIS));
 
-            JLabel network = WlanTheme.label("MATHOS  /  WLAN NETWORK",11,WlanTheme.TEXT_SOFT);
-            network.setFont(WlanTheme.font(Font.BOLD,11));
+            JLabel network = WlanTheme.label("MATHOSCOIN  /  WLAN MREŽA",12,WlanTheme.TEXT_SOFT);
+            network.setFont(WlanTheme.font(Font.BOLD,12));
+            network.setAlignmentX(Component.LEFT_ALIGNMENT);
+            network.setMaximumSize(new Dimension(Integer.MAX_VALUE,network.getPreferredSize().height));
             copy.add(network);
             copy.add(Box.createVerticalStrut(28));
 
-            copy.add(WlanTheme.title("Run your part",39));
-            copy.add(WlanTheme.title("of the chain.",39));
+            JLabel titleFirstLine = WlanTheme.title("Pokreni svoj",38);
+            JLabel titleSecondLine = WlanTheme.title("blockchain node.",38);
+            titleFirstLine.setAlignmentX(Component.LEFT_ALIGNMENT);
+            titleSecondLine.setAlignmentX(Component.LEFT_ALIGNMENT);
+            titleFirstLine.setMaximumSize(new Dimension(Integer.MAX_VALUE,titleFirstLine.getPreferredSize().height));
+            titleSecondLine.setMaximumSize(new Dimension(Integer.MAX_VALUE,titleSecondLine.getPreferredSize().height));
+            copy.add(titleFirstLine);
+            copy.add(titleSecondLine);
             copy.add(Box.createVerticalStrut(18));
 
-            JTextArea detail = new JTextArea("Pokreni potpuno ravnopravan MATHOSCOIN node. Aplikacija sluša peerove, automatski ih otkriva na lokalnoj mreži i sinkronizira jedan zajednički blockchain.");
+            JTextArea detail = new JTextArea("Ovaj uređaj postaje ravnopravan čvor MATHOSCOIN mreže: sluša peerove, pronalazi ih na lokalnoj mreži i sinkronizira zajednički blockchain.");
             detail.setEditable(false);
             detail.setLineWrap(true);
             detail.setWrapStyleWord(true);
             detail.setOpaque(false);
             detail.setForeground(WlanTheme.TEXT_SOFT);
-            detail.setFont(WlanTheme.font(Font.PLAIN,15));
+            detail.setFont(WlanTheme.font(Font.PLAIN,16));
             detail.setMaximumSize(new Dimension(390,100));
+            detail.setAlignmentX(Component.LEFT_ALIGNMENT);
             copy.add(detail);
             copy.add(Box.createVerticalStrut(34));
 
@@ -106,7 +115,7 @@ public class WlanGUI_Main {
 
             JPanel footer = new JPanel(new BorderLayout());
             footer.setOpaque(false);
-            footer.add(WlanTheme.label("MATHOSCOIN",11,WlanTheme.TEXT_SOFT),BorderLayout.WEST);
+            footer.add(WlanTheme.label("MATHOSCOIN",12,WlanTheme.TEXT_SOFT),BorderLayout.WEST);
             JLabel symbol = WlanTheme.title("MATH",18);
             footer.add(symbol,BorderLayout.EAST);
             card.add(footer,BorderLayout.SOUTH);
@@ -116,7 +125,9 @@ public class WlanGUI_Main {
         private JComponent feature(String number,String title,String description) {
             JPanel row = new JPanel(new BorderLayout(14,0));
             row.setOpaque(false);
-            JLabel badge = WlanTheme.title(number,11);
+            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE,44));
+            JLabel badge = WlanTheme.title(number,12);
             badge.setHorizontalAlignment(SwingConstants.CENTER);
             badge.setPreferredSize(new Dimension(38,38));
             badge.setBorder(BorderFactory.createLineBorder(WlanTheme.alpha(WlanTheme.TEXT_SOFT,100)));
@@ -125,8 +136,8 @@ public class WlanGUI_Main {
             JPanel text = new JPanel();
             text.setOpaque(false);
             text.setLayout(new BoxLayout(text,BoxLayout.Y_AXIS));
-            JLabel titleLabel = WlanTheme.title(title,11);
-            JLabel descriptionLabel = WlanTheme.label(description,11,WlanTheme.TEXT_SOFT);
+            JLabel titleLabel = WlanTheme.title(title,12);
+            JLabel descriptionLabel = WlanTheme.label(description,12,WlanTheme.TEXT_SOFT);
             text.add(titleLabel);
             text.add(Box.createVerticalStrut(3));
             text.add(descriptionLabel);
@@ -141,11 +152,11 @@ public class WlanGUI_Main {
             JPanel form = new JPanel();
             form.setOpaque(false);
             form.setLayout(new BoxLayout(form,BoxLayout.Y_AXIS));
-            form.add(WlanTheme.label("NEW LOCAL SESSION",10,WlanTheme.CYAN));
+            form.add(WlanTheme.label("NOVA LOKALNA SESIJA",11,WlanTheme.CYAN));
             form.add(Box.createVerticalStrut(6));
-            form.add(WlanTheme.title("Configure this node",26));
+            form.add(WlanTheme.title("Pokreni WLAN node",28));
             form.add(Box.createVerticalStrut(7));
-            form.add(WlanTheme.label("Svaki uređaj dobiva vlastiti identity i isti network ID.",12,WlanTheme.MUTED));
+            form.add(WlanTheme.label("Odaberi identitet, ulogu i port ovoga uređaja.",13,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(23));
 
             JPanel identity = new JPanel(new GridLayout(1,2,12,0));
@@ -156,7 +167,7 @@ public class WlanGUI_Main {
             form.add(identity);
             form.add(Box.createVerticalStrut(18));
 
-            form.add(WlanTheme.label("NODE ROLE",10,WlanTheme.MUTED));
+            form.add(WlanTheme.label("NODE ROLE",11,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(8));
             JPanel roles = new JPanel(new GridLayout(1,3,8,0));
             roles.setOpaque(false);
@@ -174,15 +185,15 @@ public class WlanGUI_Main {
             JPanel local = new JPanel(new GridLayout(1,2,12,0));
             local.setOpaque(false);
             local.add(input("LISTEN PORT",portField));
-            JLabel discovery = WlanTheme.label("<html>UDP 4999<br>AUTO DISCOVERY</html>",11,WlanTheme.SUCCESS);
-            discovery.setFont(WlanTheme.font(Font.BOLD,11));
+            JLabel discovery = WlanTheme.label("<html>UDP 4999<br>AUTO DISCOVERY</html>",12,WlanTheme.SUCCESS);
+            discovery.setFont(WlanTheme.font(Font.BOLD,12));
             discovery.setBorder(new EmptyBorder(22,12,0,0));
             local.add(discovery);
             local.setMaximumSize(new Dimension(Integer.MAX_VALUE,67));
             form.add(local);
             form.add(Box.createVerticalStrut(17));
 
-            form.add(WlanTheme.label("OPTIONAL MANUAL BOOTSTRAP",10,WlanTheme.MUTED));
+            form.add(WlanTheme.label("OPTIONAL MANUAL BOOTSTRAP",11,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(8));
             JPanel peer = new JPanel(new GridLayout(1,2,12,0));
             peer.setOpaque(false);
@@ -208,7 +219,7 @@ public class WlanGUI_Main {
             JPanel wrapper = new JPanel(new BorderLayout(0,6));
             wrapper.setOpaque(false);
             field.getAccessibleContext().setAccessibleName(label);
-            wrapper.add(WlanTheme.label(label,9,WlanTheme.MUTED),BorderLayout.NORTH);
+            wrapper.add(WlanTheme.label(label,11,WlanTheme.MUTED),BorderLayout.NORTH);
             wrapper.add(field,BorderLayout.CENTER);
             return wrapper;
         }
@@ -268,8 +279,21 @@ public class WlanGUI_Main {
 
         private static JTextField field(String value) {
             JTextField field = new JTextField(value);
-            field.setFont(WlanTheme.font(Font.PLAIN,12));
+            field.setFont(WlanTheme.font(Font.PLAIN,14));
             return field;
+        }
+
+        private static JTextArea feedbackArea() {
+            JTextArea area = new JTextArea("Peer IP nije obavezan.\nUDP discovery će pokušati pronaći nodeove.");
+            area.setEditable(false);
+            area.setFocusable(false);
+            area.setOpaque(false);
+            area.setLineWrap(true);
+            area.setWrapStyleWord(true);
+            area.setRows(2);
+            area.setForeground(WlanTheme.MUTED);
+            area.setFont(WlanTheme.font(Font.PLAIN,12));
+            return area;
         }
     }
 
@@ -333,10 +357,10 @@ public class WlanGUI_Main {
             g.fillRoundRect(0,0,getWidth(),getHeight(),17,17);
             g.setColor(isSelected() ? WlanTheme.PRIMARY_LIGHT : WlanTheme.BORDER);
             g.drawRoundRect(0,0,getWidth() - 1,getHeight() - 1,17,17);
-            g.setFont(WlanTheme.font(Font.BOLD,11));
+            g.setFont(WlanTheme.font(Font.BOLD,12));
             g.setColor(WlanTheme.TEXT);
             g.drawString(title,12,26);
-            g.setFont(WlanTheme.font(Font.PLAIN,9));
+            g.setFont(WlanTheme.font(Font.PLAIN,11));
             g.setColor(WlanTheme.MUTED);
             String compact = detail.length() > 19 ? detail.substring(0,19) + "…" : detail;
             g.drawString(compact,12,47);
