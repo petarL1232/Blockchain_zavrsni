@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean; //peak
+import java.util.Set;
 
 public class NetworkNode implements AutoCloseable {
 
@@ -35,11 +36,15 @@ public class NetworkNode implements AutoCloseable {
     private final String networkId;
 
     private final BlockChain blockchain;
+
     private final Map<String, PeerConnection> activePeers = new ConcurrentHashMap<>();
+    private final Set<String> maintainedPeerAddresses = ConcurrentHashMap.newKeySet();
 
     private volatile boolean running;
     private final AtomicBoolean miningLoopStarted = new AtomicBoolean(false);
     private Server server;
+
+    private PeerDiscovery peerDiscovery;
 
     public NetworkNode(
             String nodeId,
@@ -71,6 +76,13 @@ public class NetworkNode implements AutoCloseable {
         pingThread.setName("ping-" + nodeId);
         pingThread.start();
 
+        try {
+            peerDiscovery = new PeerDiscovery(this);
+            peerDiscovery.start();
+        } catch (IOException e) {
+            System.out.println("UDP discovery nije pokrenut ): \n " + e.getMessage() + ". Ručno spajanje i dalje radi ako je uneseno jel");
+        }
+
         System.out.println("Network node pokrenut: " + nodeId);
         System.out.println("Node type: " + nodeType);
     }
@@ -88,7 +100,7 @@ public class NetworkNode implements AutoCloseable {
 
             } catch (IOException e) {
                 if (running) {
-                    System.out.println("Greška kod prihvaćanja peera: " + e.getMessage());
+                    System.out.println("Greyka kod prihvaćanja peera: " + e.getMessage());
                 }
             }
         }
@@ -833,9 +845,14 @@ public class NetworkNode implements AutoCloseable {
     }
 
     public void maintainConnection(String ipAddress, int port) {
+        String peerAdress = ipAddress + ":" + port;
+
+        if (!maintainedPeerAddresses.add(peerAdress)) {
+            return;
+        }
 
         Thread reconnectThread = new Thread(() -> {
-
+            try{
             while (running) {
 
                 if (!isConnectedTo(ipAddress)) {
@@ -848,6 +865,9 @@ public class NetworkNode implements AutoCloseable {
                     Thread.currentThread().interrupt();
                     return;
                 }
+            }}
+            finally {
+                maintainedPeerAddresses.remove(peerAdress);
             }
         });
 
@@ -1063,6 +1083,10 @@ public class NetworkNode implements AutoCloseable {
         }
 
         activePeers.clear();
+
+        if (peerDiscovery != null) {
+            peerDiscovery.close();
+        }
 
         if (server != null) {
             server.close();
