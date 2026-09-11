@@ -299,7 +299,7 @@ public class ZoomableWalletView extends JPanel {
         overlay.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
         overlay.setColor(WlanTheme.alpha(WlanTheme.BACKGROUND,165));
         overlay.fillRoundRect(14,14,150,28,14,14);
-        overlay.setFont(WlanTheme.font(Font.BOLD,10));
+        overlay.setFont(WlanTheme.font(Font.BOLD,11));
         overlay.setColor(WlanTheme.TEXT_SOFT);
         overlay.drawString(Math.round(scale * 100) + "%  ·  DRAG / ZOOM",28,32);
         if(hasFocus()) {

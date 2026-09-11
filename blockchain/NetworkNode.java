@@ -29,6 +29,7 @@ public class NetworkNode implements AutoCloseable {
 
     private static final long PING_INTERVAL = 5000;
     private static final long MINING_IDLE_WAIT = 1000L;
+    private static final long FULL_CHAIN_REQUEST_TIMEOUT = 30_000L;
 
     private final String nodeId;
     private final Computer.NodeType nodeType;
@@ -39,6 +40,7 @@ public class NetworkNode implements AutoCloseable {
 
     private final Map<String, PeerConnection> activePeers = new ConcurrentHashMap<>();
     private final Set<String> maintainedPeerAddresses = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> fullChainRequests = new ConcurrentHashMap<>();
 
     private volatile boolean running;
     private final AtomicBoolean miningLoopStarted = new AtomicBoolean(false);
@@ -210,7 +212,7 @@ public class NetworkNode implements AutoCloseable {
             System.out.println("Node type: " + peerInfo.getNodeType());
 
             sendCurrentState(connection); // ovo je outbound dio jer naš node šalje konekciju da se spoji na njega
-            requestChainIfPeerStronger(connection, peerInfo); // isto outbound
+            requestChainIfPeerStronger(connection, peerInfo, peerNodeId); // isto outbound
             startPeerListener(connection, peerNodeId);
 
         } catch (Exception e) {
@@ -299,7 +301,7 @@ public class NetworkNode implements AutoCloseable {
             System.out.println("Node type: " + peerInfo.getNodeType());
 
             sendCurrentState(connection); // ovo je inbound dio jer čeka da se netko spoji na naš node
-            requestChainIfPeerStronger(connection, peerInfo);
+            requestChainIfPeerStronger(connection, peerInfo, peerNodeId);
             listenForMessages(connection, peerNodeId);
 
         } catch (SocketException e) {
@@ -313,6 +315,9 @@ public class NetworkNode implements AutoCloseable {
         } finally {
             if (registered) {
                 activePeers.remove(peerNodeId, connection);
+            }
+            if (peerNodeId != null) {
+                fullChainRequests.remove(peerNodeId);
             }
         }
     }
@@ -334,6 +339,7 @@ public class NetworkNode implements AutoCloseable {
                                 + e.getMessage());
             } finally {
                 activePeers.remove(peerNodeId, connection);
+                fullChainRequests.remove(peerNodeId);
             }
         });
 
@@ -401,6 +407,16 @@ public class NetworkNode implements AutoCloseable {
             return;
         }
 
+        long now = System.currentTimeMillis();
+        Long previousRequest = fullChainRequests.get(peerNodeId);
+
+        if (previousRequest != null
+                && now - previousRequest < FULL_CHAIN_REQUEST_TIMEOUT) {
+            return;
+        }
+
+        fullChainRequests.put(peerNodeId, now);
+
         try {
             NetworkMessage request = MessageCodec.createMessage(
                     MessageType.GET_CHAIN,
@@ -411,6 +427,7 @@ public class NetworkNode implements AutoCloseable {
             connection.send(request);
 
         } catch (IOException e) {
+            fullChainRequests.remove(peerNodeId);
             System.out.println(
                     "Ne mogu zatražiti chain od: "
                             + peerNodeId);
@@ -565,6 +582,27 @@ public class NetworkNode implements AutoCloseable {
             return;
         }
 
+        Block latestBlock = blockchain.getLatestBlock();
+
+        if (receivedBlock.index <= latestBlock.index) {
+            System.out.println(
+                    "Ignoriran stari ili već riješeni fork block #"
+                            + receivedBlock.index
+                            + " od nodea "
+                            + peerNodeId);
+            return;
+        }
+
+        if (receivedBlock.index > latestBlock.index + 1) {
+            System.out.println(
+                    "Nedostaju blokovi prije blocka #"
+                            + receivedBlock.index
+                            + " od nodea "
+                            + peerNodeId);
+            requestFullChain(peerNodeId);
+            return;
+        }
+
         if (!blockchain.receiveBlock(receivedBlock)) {
             System.out.println("Blok od " + peerNodeId + " nije prihvaćen.");
             requestFullChain(peerNodeId); // trazi full chain jer je mozda fork potrebno napravit
@@ -588,7 +626,8 @@ public class NetworkNode implements AutoCloseable {
 
     private void requestChainIfPeerStronger(
             PeerConnection connection,
-            HelloPayload peerInfo) throws IOException {
+            HelloPayload peerInfo,
+            String peerNodeId) throws IOException {
 
         try {
             BigInteger peerWork = new BigInteger(
@@ -611,6 +650,7 @@ public class NetworkNode implements AutoCloseable {
                     new GetChainPayload(0));
 
             connection.send(request);
+            fullChainRequests.put(peerNodeId, System.currentTimeMillis());
 
             System.out.println(
                     "Peer ima jači chain. Pokrenut GET_CHAIN.");
@@ -1202,6 +1242,7 @@ public class NetworkNode implements AutoCloseable {
         }
 
         activePeers.clear();
+        fullChainRequests.clear();
 
         if (peerDiscovery != null) {
             peerDiscovery.close();

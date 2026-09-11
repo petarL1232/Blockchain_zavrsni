@@ -76,8 +76,8 @@ public class WlanGUI_Main {
             copy.setOpaque(false);
             copy.setLayout(new BoxLayout(copy,BoxLayout.Y_AXIS));
 
-            JLabel network = WlanTheme.label("MATHOSCOIN  /  WLAN MREŽA",12,WlanTheme.TEXT_SOFT);
-            network.setFont(WlanTheme.font(Font.BOLD,12));
+            JLabel network = WlanTheme.label("MATHOSCOIN  /  WLAN MREŽA",13,WlanTheme.TEXT_SOFT);
+            network.setFont(WlanTheme.font(Font.BOLD,13));
             network.setAlignmentX(Component.LEFT_ALIGNMENT);
             network.setMaximumSize(new Dimension(Integer.MAX_VALUE,network.getPreferredSize().height));
             copy.add(network);
@@ -100,7 +100,8 @@ public class WlanGUI_Main {
             detail.setOpaque(false);
             detail.setForeground(WlanTheme.TEXT_SOFT);
             detail.setFont(WlanTheme.font(Font.PLAIN,16));
-            detail.setMaximumSize(new Dimension(390,100));
+            detail.setRows(4);
+            detail.setMaximumSize(new Dimension(390,90));
             detail.setAlignmentX(Component.LEFT_ALIGNMENT);
             copy.add(detail);
             copy.add(Box.createVerticalStrut(34));
@@ -127,17 +128,16 @@ public class WlanGUI_Main {
             row.setOpaque(false);
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE,44));
-            JLabel badge = WlanTheme.title(number,12);
+            JLabel badge = new WlanTheme.PillLabel(number,WlanTheme.TEXT_SOFT);
             badge.setHorizontalAlignment(SwingConstants.CENTER);
             badge.setPreferredSize(new Dimension(38,38));
-            badge.setBorder(BorderFactory.createLineBorder(WlanTheme.alpha(WlanTheme.TEXT_SOFT,100)));
             row.add(badge,BorderLayout.WEST);
 
             JPanel text = new JPanel();
             text.setOpaque(false);
             text.setLayout(new BoxLayout(text,BoxLayout.Y_AXIS));
-            JLabel titleLabel = WlanTheme.title(title,12);
-            JLabel descriptionLabel = WlanTheme.label(description,12,WlanTheme.TEXT_SOFT);
+            JLabel titleLabel = WlanTheme.title(title,13);
+            JLabel descriptionLabel = WlanTheme.label(description,13,WlanTheme.TEXT_SOFT);
             text.add(titleLabel);
             text.add(Box.createVerticalStrut(3));
             text.add(descriptionLabel);
@@ -152,11 +152,11 @@ public class WlanGUI_Main {
             JPanel form = new JPanel();
             form.setOpaque(false);
             form.setLayout(new BoxLayout(form,BoxLayout.Y_AXIS));
-            form.add(WlanTheme.label("NOVA LOKALNA SESIJA",11,WlanTheme.CYAN));
+            form.add(WlanTheme.label("NOVA LOKALNA SESIJA",12,WlanTheme.CYAN));
             form.add(Box.createVerticalStrut(6));
-            form.add(WlanTheme.title("Pokreni WLAN node",28));
+            form.add(WlanTheme.title("Pokreni WLAN node",30));
             form.add(Box.createVerticalStrut(7));
-            form.add(WlanTheme.label("Odaberi identitet, ulogu i port ovoga uređaja.",13,WlanTheme.MUTED));
+            form.add(WlanTheme.label("Odaberi identitet, ulogu i port ovoga uređaja.",14,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(23));
 
             JPanel identity = new JPanel(new GridLayout(1,2,12,0));
@@ -167,14 +167,14 @@ public class WlanGUI_Main {
             form.add(identity);
             form.add(Box.createVerticalStrut(18));
 
-            form.add(WlanTheme.label("NODE ROLE",11,WlanTheme.MUTED));
+            form.add(WlanTheme.label("NODE ROLE",12,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(8));
             JPanel roles = new JPanel(new GridLayout(1,3,8,0));
             roles.setOpaque(false);
             roles.add(fullButton);
             roles.add(minerButton);
             roles.add(lightButton);
-            roles.setMaximumSize(new Dimension(Integer.MAX_VALUE,78));
+            roles.setMaximumSize(new Dimension(Integer.MAX_VALUE,82));
             typeGroup.add(fullButton);
             typeGroup.add(minerButton);
             typeGroup.add(lightButton);
@@ -185,15 +185,15 @@ public class WlanGUI_Main {
             JPanel local = new JPanel(new GridLayout(1,2,12,0));
             local.setOpaque(false);
             local.add(input("LISTEN PORT",portField));
-            JLabel discovery = WlanTheme.label("<html>UDP 4999<br>AUTO DISCOVERY</html>",12,WlanTheme.SUCCESS);
-            discovery.setFont(WlanTheme.font(Font.BOLD,12));
+            JLabel discovery = WlanTheme.label("<html>UDP 4999<br>AUTO DISCOVERY</html>",13,WlanTheme.SUCCESS);
+            discovery.setFont(WlanTheme.font(Font.BOLD,13));
             discovery.setBorder(new EmptyBorder(22,12,0,0));
             local.add(discovery);
             local.setMaximumSize(new Dimension(Integer.MAX_VALUE,67));
             form.add(local);
             form.add(Box.createVerticalStrut(17));
 
-            form.add(WlanTheme.label("OPTIONAL MANUAL BOOTSTRAP",11,WlanTheme.MUTED));
+            form.add(WlanTheme.label("OPTIONAL MANUAL BOOTSTRAP",12,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(8));
             JPanel peer = new JPanel(new GridLayout(1,2,12,0));
             peer.setOpaque(false);
@@ -208,7 +208,7 @@ public class WlanGUI_Main {
             footer.setOpaque(false);
             feedback.setBorder(new EmptyBorder(0,0,0,8));
             footer.add(feedback,BorderLayout.CENTER);
-            startButton.setPreferredSize(new Dimension(190,43));
+            startButton.setPreferredSize(new Dimension(205,46));
             startButton.addActionListener(event -> startNode());
             footer.add(startButton,BorderLayout.EAST);
             card.add(footer,BorderLayout.SOUTH);
@@ -219,7 +219,7 @@ public class WlanGUI_Main {
             JPanel wrapper = new JPanel(new BorderLayout(0,6));
             wrapper.setOpaque(false);
             field.getAccessibleContext().setAccessibleName(label);
-            wrapper.add(WlanTheme.label(label,11,WlanTheme.MUTED),BorderLayout.NORTH);
+            wrapper.add(WlanTheme.label(label,12,WlanTheme.MUTED),BorderLayout.NORTH);
             wrapper.add(field,BorderLayout.CENTER);
             return wrapper;
         }
@@ -278,13 +278,13 @@ public class WlanGUI_Main {
         }
 
         private static JTextField field(String value) {
-            JTextField field = new JTextField(value);
-            field.setFont(WlanTheme.font(Font.PLAIN,14));
+            JTextField field = new WlanTheme.RoundedTextField(value);
+            field.setFont(WlanTheme.font(Font.PLAIN,15));
             return field;
         }
 
         private static JTextArea feedbackArea() {
-            JTextArea area = new JTextArea("Peer IP nije obavezan.\nUDP discovery će pokušati pronaći nodeove.");
+            JTextArea area = new JTextArea("Peer IP nije obavezan.\nUDP automatski traži peerove.");
             area.setEditable(false);
             area.setFocusable(false);
             area.setOpaque(false);
@@ -292,7 +292,7 @@ public class WlanGUI_Main {
             area.setWrapStyleWord(true);
             area.setRows(2);
             area.setForeground(WlanTheme.MUTED);
-            area.setFont(WlanTheme.font(Font.PLAIN,12));
+            area.setFont(WlanTheme.font(Font.PLAIN,13));
             return area;
         }
     }
@@ -357,10 +357,10 @@ public class WlanGUI_Main {
             g.fillRoundRect(0,0,getWidth(),getHeight(),17,17);
             g.setColor(isSelected() ? WlanTheme.PRIMARY_LIGHT : WlanTheme.BORDER);
             g.drawRoundRect(0,0,getWidth() - 1,getHeight() - 1,17,17);
-            g.setFont(WlanTheme.font(Font.BOLD,12));
+            g.setFont(WlanTheme.font(Font.BOLD,13));
             g.setColor(WlanTheme.TEXT);
             g.drawString(title,12,26);
-            g.setFont(WlanTheme.font(Font.PLAIN,11));
+            g.setFont(WlanTheme.font(Font.PLAIN,12));
             g.setColor(WlanTheme.MUTED);
             String compact = detail.length() > 19 ? detail.substring(0,19) + "…" : detail;
             g.drawString(compact,12,47);
