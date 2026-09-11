@@ -46,6 +46,8 @@ public class NetworkNode implements AutoCloseable {
 
     private PeerDiscovery peerDiscovery;
 
+    private final BlockchainRepository blockchainRepository;
+
     public NetworkNode(
             String nodeId,
             Computer.NodeType nodeType,
@@ -57,6 +59,22 @@ public class NetworkNode implements AutoCloseable {
         this.listenPort = listenPort;
         this.networkId = networkId;
         this.blockchain = blockchain;
+        this.blockchainRepository = null;
+    }
+
+    public NetworkNode(
+            String nodeId,
+            Computer.NodeType nodeType,
+            int listenPort,
+            String networkId,
+            BlockChain blockchain,
+            BlockchainRepository blockchainRepository) {
+        this.nodeId = nodeId;
+        this.nodeType = nodeType;
+        this.listenPort = listenPort;
+        this.networkId = networkId;
+        this.blockchain = blockchain;
+        this.blockchainRepository = blockchainRepository;
     }
 
     public synchronized void start() throws IOException {
@@ -80,7 +98,8 @@ public class NetworkNode implements AutoCloseable {
             peerDiscovery = new PeerDiscovery(this);
             peerDiscovery.start();
         } catch (IOException e) {
-            System.out.println("UDP discovery nije pokrenut ): \n " + e.getMessage() + ". Ručno spajanje i dalje radi ako je uneseno jel");
+            System.out.println("UDP discovery nije pokrenut ): \n " + e.getMessage()
+                    + ". Ručno spajanje i dalje radi ako je uneseno jel");
         }
 
         System.out.println("Network node pokrenut: " + nodeId);
@@ -185,7 +204,7 @@ public class NetworkNode implements AutoCloseable {
             }
 
             registered = true;
-
+            savePeerToDatabase(peerNodeId,ipAddress,peerInfo.getListenPort(),peerInfo.getNodeType());
             System.out.println("HELLO handshake uspješan puff");
             System.out.println("Spojen node: " + peerNodeId);
             System.out.println("Node type: " + peerInfo.getNodeType());
@@ -275,7 +294,7 @@ public class NetworkNode implements AutoCloseable {
                 System.out.println("HELLO odbijen: " + rejectionReason);
                 return;
             }
-
+            savePeerToDatabase(peerNodeId,connection.getRemoteAddress(),peerInfo.getListenPort(),peerInfo.getNodeType());
             System.out.println("Prihvaćen node: " + peerNodeId);
             System.out.println("Node type: " + peerInfo.getNodeType());
 
@@ -494,6 +513,7 @@ public class NetworkNode implements AutoCloseable {
         if (!blockchain.replaceChainIfStronger(candidateChain)) {
             return;
         }
+        saveChainToDatabase();
 
         BlockPayload newTip = payload
                 .getBlocks()
@@ -550,6 +570,7 @@ public class NetworkNode implements AutoCloseable {
             requestFullChain(peerNodeId); // trazi full chain jer je mozda fork potrebno napravit
             return;
         }
+        saveBlockToDatabase(receivedBlock);
 
         System.out.println(
                 "Prihvaćen block #"
@@ -685,7 +706,7 @@ public class NetworkNode implements AutoCloseable {
         if (initialBalance > 0L) {
             blockchain.addInitialBalance(wallet.getAddress(), initialBalance);
         }
-
+        saveLocalWalletToDatabase(wallet,blockchain.getInitialBalance(wallet.getAddress()));
         WalletPayload payload = new WalletPayload(
                 wallet.getAddress(),
                 wallet.getPublicKeyString(),
@@ -701,7 +722,7 @@ public class NetworkNode implements AutoCloseable {
         if (!blockchain.addPendingTransaction(transaction)) {
             return false;
         }
-
+        savePendingTransactionToDatabase(transaction);
         TransactionPayload payload = NetworkMapper.transactionToPayload(transaction);
         broadcastMessage(MessageType.TRANSACTION, payload, null);
 
@@ -722,6 +743,7 @@ public class NetworkNode implements AutoCloseable {
         if (!added) {
             return;
         }
+        saveNetworkWalletToDatabase(payload.getAddress(),payload.getPublicKey(),payload.getInitialBalance());
 
         System.out.println(
                 "Wallet primljen od "
@@ -755,6 +777,7 @@ public class NetworkNode implements AutoCloseable {
         if (!blockchain.addPendingTransaction(transaction)) {
             return;
         }
+        savePendingTransactionToDatabase(transaction);
 
         System.out.println(
                 "Transakcija primljena od "
@@ -852,21 +875,21 @@ public class NetworkNode implements AutoCloseable {
         }
 
         Thread reconnectThread = new Thread(() -> {
-            try{
-            while (running) {
+            try {
+                while (running) {
 
-                if (!isConnectedTo(ipAddress)) {
-                    connectToPeer(ipAddress, port);
-                }
+                    if (!isConnectedTo(ipAddress)) {
+                        connectToPeer(ipAddress, port);
+                    }
 
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                    try {
+                        Thread.sleep(3000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
-            }}
-            finally {
+            } finally {
                 maintainedPeerAddresses.remove(peerAdress);
             }
         });
@@ -1027,22 +1050,17 @@ public class NetworkNode implements AutoCloseable {
                 continue;
             }
 
-            System.out.println(
-                    "Miner "
-                            + nodeId
-                            + " započinje rudarenje jer mempool nije prazan.");
+            System.out.println("Miner " + nodeId + " započinje rudarenje jer mempool nije prazan.");
 
             Block minedBlock = blockchain.minePendingTransactionsForNetwork(
                     minerAddress);
 
             if (minedBlock == null) {
-                System.out.println(
-                        "Miner "
-                                + nodeId
-                                + " je izgubio mining utrku.");
+                System.out.println("Miner " + nodeId + " je izgubio mining utrku.");
 
                 continue;
             }
+            saveBlockToDatabase(minedBlock);
 
             BlockPayload payload = NetworkMapper.blockToPayload(minedBlock);
             broadcastMessage(
@@ -1071,6 +1089,107 @@ public class NetworkNode implements AutoCloseable {
 
     public BlockChain getBlockchain() {
         return blockchain;
+    }
+
+    private void saveLocalWalletToDatabase(
+            Wallet wallet,
+            long initialBalance) {
+
+        if (blockchainRepository == null) {
+            return;
+        }
+
+        try {
+            blockchainRepository.saveLocalWallet(
+                    wallet,
+                    initialBalance);
+        } catch (Exception e) {
+            System.out.println("Lokalni wallet nije spremljen u bazu: "+ e.getMessage());
+        }
+    }
+
+    private void saveNetworkWalletToDatabase(
+            String address,
+            String publicKey,
+            long initialBalance) {
+
+        if (blockchainRepository == null) {
+            return;
+        }
+
+        try {
+            blockchainRepository.saveNetworkWallet(
+                    address,
+                    publicKey,
+                    initialBalance);
+        } catch (Exception e) {
+            System.out.println("Network wallet nije spremljen u bazu: "+ e.getMessage());
+        }
+    }
+
+    private void savePendingTransactionToDatabase(
+            Transactions transaction) {
+
+        if (blockchainRepository == null) {
+            return;
+        }
+
+        try {
+            blockchainRepository.savePendingTransaction(transaction);
+        } catch (Exception e) {
+            System.out.println("Pending transakcija nije spremljena u bazu: "+ e.getMessage());
+        }
+    }
+
+    private void saveBlockToDatabase(Block block) {
+
+        if (blockchainRepository == null) {
+            return;
+        }
+
+        try {
+            blockchainRepository.saveAcceptedBlock(
+                    block,
+                    blockchain.getTransactionPoolSnapshot());
+        } catch (Exception e) {
+            System.out.println("Block nije spremljen u bazu: "+ e.getMessage());
+        }
+    }
+
+    private void saveChainToDatabase() {
+
+        if (blockchainRepository == null) {
+            return;
+        }
+
+        try {
+            blockchainRepository.replaceChain(
+                    blockchain.getChainSnapshot(),
+                    blockchain.getTransactionPoolSnapshot());
+        } catch (Exception e) {
+            System.out.println("Novi chain nije spremljen u bazu: " + e.getMessage());
+        }
+    }
+
+    private void savePeerToDatabase(
+            String peerNodeId,
+            String host,
+            int port,
+            String peerNodeType) {
+
+        if (blockchainRepository == null) {
+            return;
+        }
+
+        try {
+            blockchainRepository.savePeer(
+                    peerNodeId,
+                    host,
+                    port,
+                    peerNodeType);
+        } catch (Exception e) {
+            System.out.println("Peer nije spremljen u bazu: " + e.getMessage());
+        }
     }
 
     @Override

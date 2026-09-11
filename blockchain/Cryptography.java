@@ -2,10 +2,11 @@ import java.util.Base64;
 import java.security.*;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+
 public class Cryptography {
 
-
-    //bitno je da vraća duljinu izlaza od 64 char
+    // bitno je da vraća duljinu izlaza od 64 char
     // secure hash algorithm
     // https://en.wikipedia.org/wiki/SHA-2
     public static String applySHA256(String input) {
@@ -15,8 +16,9 @@ public class Cryptography {
 
             StringBuilder hexString = new StringBuilder();
             for (byte b : hashBytes) {
-                String hex = Integer.toHexString(0xff & b); //pretvara byte u pozitivni broj 0-255
-                if (hex.length() == 1) hexString.append('0'); //ako je broj duljine 1, dodajemo 0 na pocetak
+                String hex = Integer.toHexString(0xff & b); // pretvara byte u pozitivni broj 0-255
+                if (hex.length() == 1)
+                    hexString.append('0'); // ako je broj duljine 1, dodajemo 0 na pocetak
                 hexString.append(hex);
             }
 
@@ -25,9 +27,10 @@ public class Cryptography {
             throw new RuntimeException(e);
         }
     }
-    
+
     // Digital signature algorithm
-    // ECDSA algoritam koristi eliptičke krivulje, a DSA koristi problem diskretnog logaritma i grupe
+    // ECDSA algoritam koristi eliptičke krivulje, a DSA koristi problem diskretnog
+    // logaritma i grupe
     // ECDSA je standard pa ću koristiti njega
     public static KeyPair generateKeyPair() throws Exception {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC"); // EC algoritam
@@ -55,8 +58,10 @@ public class Cryptography {
     public static KeyPair generateKeyPairForAddress() {
         try {
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC"); // služit će i za potpisivanje
-            //ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1"); // ovo je Bitcoin standard secp256r1
-            ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256r1"); // ovo zbog jednostavnosti uzimam jer radi u čistoj Javi
+            // ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1"); // ovo je
+            // Bitcoin standard secp256r1
+            ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256r1"); // ovo zbog jednostavnosti uzimam jer radi
+                                                                             // u čistoj Javi
             keyGen.initialize(ecSpec, new SecureRandom());
             KeyPair keyPair = keyGen.generateKeyPair();
             return keyPair;
@@ -71,7 +76,8 @@ public class Cryptography {
             MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
             byte[] firstHash = sha256.digest(publicKey.getEncoded());
 
-            // drugi SHA-256 (simulira RIPEMD160) kojega Java ne podržava, a netrivijalan je i beskoristan za ovaj projekt zato što ima većih problema
+            // drugi SHA-256 (simulira RIPEMD160) kojega Java ne podržava, a netrivijalan je
+            // i beskoristan za ovaj projekt zato što ima većih problema
             byte[] secondHash = sha256.digest(firstHash);
 
             // Uzmemo prvih 20 bajtova
@@ -80,13 +86,15 @@ public class Cryptography {
                 shortened[i] = secondHash[i];
             }
 
-            // Base58Check se korisit u Bitcoinu, ali može i ovako samo ćemo morati imati = na kraju ):
+            // Base58Check se korisit u Bitcoinu, ali može i ovako samo ćemo morati imati =
+            // na kraju ):
             return Base64.getEncoder().encodeToString(shortened);
 
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
     }
+
     public static String publicKeyToString(PublicKey publicKey) {
         return Base64.getEncoder().encodeToString(publicKey.getEncoded());
     }
@@ -96,11 +104,25 @@ public class Cryptography {
             byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyString);
 
             KeyFactory keyFactory = KeyFactory.getInstance("EC");
-            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes); // isto se koristi i u knjizi prema kojoj radim
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes); // isto se koristi i u knjizi prema
+                                                                                 // kojoj radim
 
             return keyFactory.generatePublic(keySpec);
         } catch (Exception e) {
             throw new RuntimeException("Javni kljuc nije ispravan.!!!!!", e);
+        }
+    }
+
+    public static PrivateKey stringToPrivateKey(String privateKeyString) {
+        try {
+            byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyString);
+
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+
+            return keyFactory.generatePrivate(keySpec);
+        } catch (Exception e) {
+            throw new RuntimeException("Privatni kljuc nije ispravan.", e);
         }
     }
     // gdb --version

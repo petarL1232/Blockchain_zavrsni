@@ -390,7 +390,8 @@ public class BlockChain {
         Long expectedNonce = temporaryNonces.get(tx.getSender());
 
         if (expectedNonce == null || tx.getNonce() != expectedNonce) {
-            System.out.println("Pogresan transaction nonce. Ocekivan: " + expectedNonce + ", primljen: " + tx.getNonce());
+            System.out
+                    .println("Pogresan transaction nonce. Ocekivan: " + expectedNonce + ", primljen: " + tx.getNonce());
             return false;
         }
 
@@ -450,8 +451,8 @@ public class BlockChain {
 
     private boolean transactionsCheck(Block newBlock, Map<String, Long> temporaryBalances,
             Map<String, Long> temporaryNonces) { // provjerava se jesu li
-                                                                                             // transakcije dobro
-                                                                                             // odrađene u ovome
+                                                 // transakcije dobro
+                                                 // odrađene u ovome
         // blocku prije nego što se izloži za mine
         int brojSystemTransakcija = 0;
         for (int i = 0; i < newBlock.getTransactions().size(); i++) {
@@ -950,7 +951,8 @@ public class BlockChain {
                     } else {
                         transactionApproved = ConsensusRules.isRegularTransactionValid(tx, publicWalletRegistry);
                     }
-                    if (transactionApproved && applyTransactionToTemporaryState(tx, temporaryBalances, temporaryNonces)) {
+                    if (transactionApproved
+                            && applyTransactionToTemporaryState(tx, temporaryBalances, temporaryNonces)) {
                         approvedTransactions.add(tx);
                     } else {
                         System.out.println(
@@ -1178,6 +1180,97 @@ public class BlockChain {
         synchronized (transactionPoolLock) {
             return new ArrayList<>(transactionPool);
         }
+    }
+
+    public synchronized boolean registerStoredLocalWallet(Wallet wallet,long initialBalance) {
+
+        if (wallet == null) {
+            System.out.println("Loklni wallet iz baze ne postoji.");
+            return false;
+        }
+
+        if (initialBalance < 0L) {
+            System.out.println("Pocetni balance ne smije biti negativan.");
+            return false;
+        }
+
+        if (chain.size() != 1) {
+            System.out.println("Walleti se moraju ucitati prije blockchaina.");
+            return false;
+        }
+
+        String address = wallet.getAddress();
+
+        if (publicWalletRegistry.containsKey(address)) {
+            System.out.println("Lokalni wallet vec postoji.");
+            return false;
+        }
+
+        wallet.increaseBalance(initialBalance);
+
+        privateWalletRegistry.put(address, wallet);
+        publicWalletRegistry.put(address, wallet.getPublicWallet());
+        initialBalances.put(address, initialBalance);
+        nextNonces.put(address, 0L);
+        adresa_walleta.add(address);
+
+        System.out.println("Lokalni wallet ucitan iz baze: " + address);
+        return true;
+    }
+
+    public synchronized boolean restoreStateFromDatabase(List<Block> savedChain,List<Transactions> savedMempool) {
+        if (savedChain == null || savedChain.isEmpty()) {
+            return false;
+        }
+        ReplayState savedState = validateAndReplayCandidateChain(savedChain);
+
+        if (savedState == null) {
+            System.out.println("Blockchain spremljen u bazi nije valjan.");
+            return false;
+        }
+
+        chain = new ArrayList<>(savedChain);
+
+        for (Map.Entry<String, PublicWallet> entry : publicWalletRegistry.entrySet()) {
+
+            long restoredBalance = savedState.balances.getOrDefault(
+                    entry.getKey(),
+                    0L);
+
+            entry.getValue().setBalance(restoredBalance);
+        }
+
+        nextNonces.clear();
+        nextNonces.putAll(savedState.nonces);
+
+        synchronized (transactionPoolLock) {
+
+            transactionPool.clear();
+
+            Map<String, Long> temporaryBalances = createBalanceSnapshot();
+            Map<String, Long> temporaryNonces = createNonceSnapshot();
+
+            if (savedMempool != null) {
+
+                for (Transactions transaction : savedMempool) {
+
+                    if (isTransactionValidForMempool(transaction) && applyTransactionToTemporaryState(transaction,temporaryBalances,temporaryNonces)) {
+                        transactionPool.add(transaction);
+
+                    } else {
+                        System.out.println("Nevaljana spremljena mempool transakcija je odbacena: " + transaction.getHash());
+                    }
+                }
+            }
+        }
+
+        if (chain.size() > 1) {
+            difficulty = getLatestBlock().getDifficulty();
+        }
+
+        System.out.println("Blockchain učitan iz baze. Height: " + getLatestBlock().index);
+
+        return true;
     }
 
     public void printBlockchain() {

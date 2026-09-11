@@ -17,6 +17,34 @@ public class Wallet {
         address = Cryptography.generateAddress(this.publicKey);
         this.publicWallet = new PublicWallet(address, Cryptography.publicKeyToString(this.publicKey));
     }
+    public Wallet(String privateKeyString,String publicKeyString) {
+        // treba bit jako oprezan jer ovaj konstruktor user moze direktno pozivati
+        if(privateKeyString == null || privateKeyString.isBlank() || publicKeyString == null || publicKeyString.isBlank()) {
+            throw new IllegalArgumentException("Private i public key moraju postojati.");
+        }
+        try {
+            this.privateKey = Cryptography.stringToPrivateKey(privateKeyString);
+            this.publicKey = Cryptography.stringToPublicKey(publicKeyString);
+
+            String testData = "MATHOS_WALLET_DATABASE_TEST";
+            String testSignature = Cryptography.signData(testData,this.privateKey);
+
+            if(!Cryptography.verifySignature(testData,testSignature,this.publicKey)) {
+                throw new IllegalArgumentException("Private i public key ne pripadaju istom walletu.");
+            }
+
+            this.address = Cryptography.generateAddress(this.publicKey);
+            this.publicWallet = new PublicWallet(
+                    this.address,
+                    Cryptography.publicKeyToString(this.publicKey)
+            );
+
+        } catch(IllegalArgumentException e) {
+            throw e;
+        } catch(Exception e) {
+            throw new IllegalArgumentException("Wallet nije moguce ucitati iz baze.",e);
+        }
+    }
 
     public String getAddress() {
         return address;
