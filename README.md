@@ -19,7 +19,7 @@ Završna verzija aplikacije koristi Swing GUI, TCP za pouzdanu razmjenu blockcha
 ## Glavne mogućnosti
 
 - FULL, MINER i LIGHT nodeovi
-- digitalno potpisane transakcije i double-spend patch
+- digitalno potpisane transakcije i zaštita od double-spendinga
 - SHA-256 hashiranje, ECDSA potpisi i Base64-kodirane adrese
 - Proof-of-Work rudarenje i natjecanje minera
 - odabir jačeg lanca prema cumulative worku
@@ -32,7 +32,7 @@ Završna verzija aplikacije koristi Swing GUI, TCP za pouzdanu razmjenu blockcha
 - peer-to-peer komunikacija preko JSON poruka
 - automatsko pronalaženje nodova preko UDP broadcasta
 - ručno povezivanje na poznatu IP adresu kao fallback
-- WLAN GUI s blockchain explorerom, pretraživanjem transakcija i prikazom najvećih walleta
+- GUI s blockchain explorerom, pretraživanjem transakcija i prikazom najvećih walleta
 
 ## Vrste nodova
 
@@ -62,7 +62,7 @@ Projekt sadrži `WLAN/Ipconfig_ex.java` kao predložak. Stvarna datoteka `WLAN/I
 Nakon prvog kloniranja:
 
 1. Kopirati `WLAN/Ipconfig_ex.java` u `WLAN/Ipconfig.java`.
-2. U kopiji treba  promijeni:
+2. U kopiji treba  promjeniti:
 
 ```java
 public interface Ipconfig_ex {
@@ -85,7 +85,7 @@ New-Item -ItemType Directory -Force tmp\classes | Out-Null
 Get-ChildItem blockchain,WLAN -Recurse -Filter *.java |
     ForEach-Object FullName |
     Set-Content tmp\sources.txt
-javac --release 20 -encoding UTF-8 -cp "lib/*" -d tmp\classes "@tmp/sources.txt"
+javac --release 25 -encoding UTF-8 -cp "lib/*" -d tmp\classes "@tmp/sources.txt"
 ```
 
 ## Pokretanje WLAN GUI-ja
@@ -263,8 +263,8 @@ blockchain/
 ├── assets/                 službeni MathosCoin logo i brand asseti
 ├── blockchain/             core blockchain, consensus, baza i mrežni node
 │   ├── WLAN_gui/           završni WLAN Swing GUI
-│   ├── new_gui/            GUI lokalne CPU simualcije
-│   └── old_gui/            ranija GUI implementacija CPU simualcije
+│   ├── new_gui/            GUI lokalne CPU simulacije
+│   └── old_gui/            ranija GUI implementacija CPU simulacije
 ├── WLAN/                   mrežne poruke, payloadi, TCP i JSON komunikacija
 ├── WLAN_test/              rani razvojni mrežni testovi
 ├── data/
@@ -306,14 +306,14 @@ Provjeri da nema druge instance s istim listen portom i bazom. Nakon urednog zat
 
 ### Gson `AccessDeniedException` nakon kompilacije na JDK-u 25
 
-Na nekim Windows/JDK 25 kombinacijama compiler pri zatvaranju može ispisati `AccessDeniedException` za Gson JAR i svejedno završiti s exit kodom `0`. Projekt je ciljan na Javu 20; ako poruka smeta, kompajliraj JDK-om 20 i provjeri je li `JAVAC_EXIT` uspješan.
+Na nekim Windows/JDK 25 kombinacijama compiler pri zatvaranju može ispisati `AccessDeniedException` za Gson JAR i svejedno završiti s exit kodom `0`. Slobodno se može ignorirati.
 
 ## Trenutna ograničenja
 
 - UDP discovery ne prelazi routere i odvojene VLAN-ove.
 - Nema NAT traversal ni javnog internet bootstrap servera.
 - **Početno usklađivanje FULL nodova može slati cijeli chain i nije optimizirano za vrlo velike produkcijske lance.**
-- Login hash u GUI-ju je demonstracijska lokalna zaštita, ne password sustav.
+- Login hash u GUI-ju je demonstracijska lokalna zaštita, ne sustav za upravljanje lozinkama.
 - Implementacija nije sigurnosno testirana u produkciji.
 
 ## Brza provjera prije demonstracije
