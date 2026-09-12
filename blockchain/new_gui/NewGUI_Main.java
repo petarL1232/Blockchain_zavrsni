@@ -10,7 +10,8 @@ public class NewGUI_Main {
             BlockchainUIController controller = BlockchainUIController.createDemo();
             BlockchainDashboard dashboard = new BlockchainDashboard(controller);
 
-            JFrame frame = new JFrame("Mathos Coin - Network Observatory");
+            JFrame frame = new JFrame("MathosCoin · Network Observatory");
+            MathosCoinBrand.applyWindowIcon(frame);
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
             frame.setMinimumSize(new Dimension(1180,760));
             frame.setSize(1480,920);

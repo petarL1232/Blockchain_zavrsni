@@ -65,3 +65,15 @@ CREATE TABLE IF NOT EXISTS peers (
 
     UNIQUE (host, port)
 );
+
+CREATE TABLE IF NOT EXISTS light_headers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    block_height INTEGER NOT NULL UNIQUE,
+    previous_hash TEXT NOT NULL,
+    block_hash TEXT NOT NULL UNIQUE,
+    merkle_root TEXT NOT NULL,
+    created_on INTEGER NOT NULL,
+    nonce INTEGER NOT NULL,
+    difficulty INTEGER NOT NULL
+);

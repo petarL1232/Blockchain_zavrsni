@@ -14,15 +14,16 @@ class BlockchainGUI_LIGHT_FULL extends JFrame {
         this.computer = computer;
 
         if (computer.getType() == Computer.NodeType.FULL) {
-            this.setTitle("Blockchain GUI - FULL Node " + wallet.getAddress());
+            this.setTitle("MathosCoin - FULL Node " + wallet.getAddress());
         } else {
-            this.setTitle("Blockchain GUI - LIGHT Node " + wallet.getAddress());
+            this.setTitle("MathosCoin - LIGHT Node " + wallet.getAddress());
         }
+        MathosCoinBrand.applyWindowIcon(this);
         this.setSize(600, 400);
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         this.setLocationRelativeTo(null);
 
-        balanceLabel = new JLabel("Balance: " + Money.format(wallet.getBalance()));
+        balanceLabel = new JLabel("Balance: " + Money.format(wallet.getBalance()) + " $MATH");
         JButton txBtn = new JButton("Send Transaction");
         JButton refreshBtn = new JButton("Refresh balance");
 
@@ -63,7 +64,7 @@ class BlockchainGUI_LIGHT_FULL extends JFrame {
     }
 
     private void updateUI() {
-        balanceLabel.setText("Balance: " + Money.format(wallet.getBalance()));
+        balanceLabel.setText("Balance: " + Money.format(wallet.getBalance()) + " $MATH");
         chainArea.setText(blockchain.toString());
     }
 }

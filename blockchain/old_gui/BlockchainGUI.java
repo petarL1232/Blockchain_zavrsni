@@ -51,7 +51,8 @@ public class BlockchainGUI extends JFrame implements KonstanteZaGUI {
 
         blockchain.printAllWallets_DETAL();
 
-        this.setTitle("Blockchain GUI - LOGIN");
+        this.setTitle("MathosCoin - LOGIN");
+        MathosCoinBrand.applyWindowIcon(this);
         this.setSize(FRAME_WIDTH, FRAME_HEIGHT);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setLocationRelativeTo(null);

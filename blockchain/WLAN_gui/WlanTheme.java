@@ -356,8 +356,9 @@ public final class WlanTheme {
         private final Timer animationTimer;
 
         public Toggle() {
-            setPreferredSize(new Dimension(48,26));
-            setMinimumSize(new Dimension(48,26));
+            setPreferredSize(new Dimension(58,32));
+            setMinimumSize(new Dimension(58,32));
+            setMaximumSize(new Dimension(58,32));
             setBorderPainted(false);
             setContentAreaFilled(false);
             setFocusPainted(false);

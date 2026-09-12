@@ -1,4 +1,5 @@
 import WLAN.BlockPayload;
+import WLAN.HeaderPayload;
 import WLAN.TransactionPayload;
 
 import java.util.*;
@@ -102,5 +103,65 @@ public final class NetworkMapper { // final !!
 
         return block;
 
+    }
+
+    public static HeaderPayload blockToHeaderPayload(Block block) {
+        if (block == null) {
+            throw new IllegalArgumentException("Ne smije biti null block puff");
+        }
+
+        return new HeaderPayload(
+                block.index,
+                block.previousHash,
+                block.getMerkleRoot(),
+                block.timestamp,
+                block.hash,
+                block.nonce,
+                block.getDifficulty());
+    }
+
+    public static HeaderPayload headerToPayload(BlockChain_LightNodes.BlockHeader header) {
+        if (header == null) {
+            throw new IllegalArgumentException("Ne smije biti null header puff");
+        }
+
+        return new HeaderPayload(
+                header.height,
+                header.previousHash,
+                header.merkleRoot,
+                header.timestamp,
+                header.blockHash,
+                header.nonce,
+                header.difficulty);
+    }
+
+    public static BlockChain_LightNodes.BlockHeader payloadToHeader(HeaderPayload headerPayload) {
+        if (headerPayload == null) {
+            throw new IllegalArgumentException("Ne smije biti null header payload puff");
+        }
+
+        return new BlockChain_LightNodes.BlockHeader(
+                headerPayload.getHeight(),
+                headerPayload.getPreviousHash(),
+                headerPayload.getMerkleRoot(),
+                headerPayload.getTimestamp(),
+                headerPayload.getBlockHash(),
+                headerPayload.getNonce(),
+                headerPayload.getDifficulty());
+    }
+
+    public static BlockChain_LightNodes.BlockHeader blockPayloadToHeader(BlockPayload blockPayload) {
+        if (blockPayload == null) {
+            throw new IllegalArgumentException("Ne smije biti null block payload puff");
+        }
+
+        return new BlockChain_LightNodes.BlockHeader(
+                blockPayload.getIndex(),
+                blockPayload.getPreviousHash(),
+                blockPayload.getMerkleRoot(),
+                blockPayload.getTimestamp(),
+                blockPayload.getHash(),
+                blockPayload.getNonce(),
+                blockPayload.getDifficulty());
     }
 }

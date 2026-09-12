@@ -279,7 +279,7 @@ public class BlockchainUIController {
             return ActionResult.fail("Blockchain je odbio transakciju.");
         }
         locallySubmitted.put(tx.getHash(),new SubmittedTransaction(tx,System.currentTimeMillis()));
-        addActivity(automatic ? "Auto mode · transakcija poslana" : "Transakcija čeka rudarenje",labelFor(senderAddress) + " → " + labelFor(receiverAddress) + " · " + Money.format(amount) + " MATHOS","info");
+        addActivity(automatic ? "Auto mode · transakcija poslana" : "Transakcija čeka rudarenje",labelFor(senderAddress) + " → " + labelFor(receiverAddress) + " · " + Money.format(amount) + " $MATH","info");
         return ActionResult.ok("Transakcija je dodana u mempool.",tx.getHash());
     }
 

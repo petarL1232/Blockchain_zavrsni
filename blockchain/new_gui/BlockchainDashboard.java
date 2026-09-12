@@ -104,7 +104,7 @@ public class BlockchainDashboard extends JPanel {
         brand.setOpaque(false);
         brand.add(new BrandMark(),BorderLayout.WEST);
         JPanel names = verticalPanel();
-        names.add(label("MATHOS COIN",Font.BOLD,18,ModernTheme.TEXT));
+        names.add(label("MathosCoin",Font.BOLD,18,ModernTheme.TEXT));
         names.add(label("BLOCKCHAIN OBSERVATORY",Font.BOLD,9,ModernTheme.BLUE));
         brand.add(names,BorderLayout.CENTER);
         sidebar.add(brand,BorderLayout.NORTH);
@@ -347,7 +347,7 @@ public class BlockchainDashboard extends JPanel {
     private class OverviewPage extends JPanel {
         private final MetricCard height = new MetricCard("CHAIN HEIGHT","0",ModernTheme.PURPLE);
         private final MetricCard transactions = new MetricCard("CONFIRMED TX","0",ModernTheme.BLUE);
-        private final MetricCard supply = new MetricCard("TOTAL VALUE","0 MATHOS",ModernTheme.CYAN);
+        private final MetricCard supply = new MetricCard("TOTAL VALUE","0 $MATH",ModernTheme.CYAN);
         private final MetricCard nodes = new MetricCard("VALIDATOR NODES","0",ModernTheme.SUCCESS);
         private final ChainLane chainLane = new ChainLane(BlockchainDashboard.this::openBlock);
         private final WalletBubbleView bubbles = new WalletBubbleView();
@@ -395,7 +395,7 @@ public class BlockchainDashboard extends JPanel {
         void update(BlockchainUIController.Snapshot data) {
             height.setValue("#" + data.chainHeight,"TIP " + ModernTheme.shortHash(data.latestHash,6));
             transactions.setValue(String.valueOf(data.confirmedTransactionCount),data.pendingTransactions.size() + " lokalno pending");
-            supply.setValue(data.totalSupplyText + " MATHOS","8-decimal ledger");
+            supply.setValue(data.totalSupplyText + " $MATH","8-decimal ledger");
             long online = data.nodes.stream().filter(node -> node.running || node.mining).count();
             nodes.setValue(String.valueOf(data.nodes.size()),online + " aktivno · " + data.difficulty + " difficulty");
             chainLane.setBlocks(data.blocks);
@@ -598,7 +598,7 @@ public class BlockchainDashboard extends JPanel {
             form.setOpaque(false);
             form.add(labeledControl("SENDER",sender));
             form.add(labeledControl("RECEIVER",receiver));
-            form.add(labeledControl("AMOUNT · MATHOS",amount));
+            form.add(labeledControl("AMOUNT · $MATH",amount));
             ModernTheme.styleInput(sender);
             ModernTheme.styleInput(receiver);
             ModernTheme.styleInput(amount);
@@ -661,8 +661,8 @@ public class BlockchainDashboard extends JPanel {
             try {
                 long value = Money.fromCoins(amount.getText());
                 long feeValue = ConsensusRules.calculateFee(value);
-                fee.setText("Fee  " + Money.format(feeValue) + " MATHOS");
-                total.setText("Ukupno  " + Money.format(Math.addExact(value,feeValue)) + " MATHOS");
+                fee.setText("Fee  " + Money.format(feeValue) + " $MATH");
+                total.setText("Ukupno  " + Money.format(Math.addExact(value,feeValue)) + " $MATH");
             } catch(Exception e) {
                 fee.setText("Fee  —");
                 total.setText("Ukupno  —");
@@ -784,7 +784,7 @@ public class BlockchainDashboard extends JPanel {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT,10,0));
         right.setOpaque(false);
         if(wallet.nodeType != null) right.add(new ModernTheme.PillLabel(wallet.nodeType.name(),nodeColor(wallet.nodeType)));
-        right.add(label(wallet.balanceText + " MATHOS",Font.BOLD,14,ModernTheme.CYAN));
+        right.add(label(wallet.balanceText + " $MATH",Font.BOLD,14,ModernTheme.CYAN));
         JButton copy = tinyButton("Copy");
         copy.addActionListener(event -> copyText(wallet.address,"Adresa je kopirana."));
         right.add(copy);
@@ -811,7 +811,7 @@ public class BlockchainDashboard extends JPanel {
         right.setOpaque(false);
         Color tone = tx.status.contains("PENDING") ? ModernTheme.WARNING : tx.system ? ModernTheme.PURPLE : ModernTheme.SUCCESS;
         right.add(new ModernTheme.PillLabel(tx.status,tone));
-        right.add(label(tx.amountText + " MATHOS",Font.BOLD,14,ModernTheme.CYAN));
+        right.add(label(tx.amountText + " $MATH",Font.BOLD,14,ModernTheme.CYAN));
         if(tx.blockIndex >= 0) right.add(label("Block #" + tx.blockIndex,Font.BOLD,11,ModernTheme.MUTED));
         row.add(right,BorderLayout.EAST);
         fixedHeight(row,64);
@@ -857,7 +857,7 @@ public class BlockchainDashboard extends JPanel {
         ModernTheme.RoundedPanel surface = new ModernTheme.RoundedPanel(22,ModernTheme.CARD,ModernTheme.PURPLE);
         surface.setLayout(new BorderLayout(0,18));
         surface.setBorder(ModernTheme.padding(24,24,22,24));
-        surface.add(sectionHeading("Kreiraj wallet","Odaberi ulogu; novi wallet nakon genesis faze počinje s 0 MATHOS"),BorderLayout.NORTH);
+        surface.add(sectionHeading("Kreiraj wallet","Odaberi ulogu; novi wallet nakon genesis faze počinje s 0 $MATH"),BorderLayout.NORTH);
 
         JComboBox<Computer.NodeType> type = new JComboBox<>(Computer.NodeType.values());
         JTextField initial = new JTextField("0");
@@ -870,7 +870,7 @@ public class BlockchainDashboard extends JPanel {
         JPanel form = new JPanel(new GridLayout(2,1,0,12));
         form.setOpaque(false);
         form.add(labeledControl("NODE TYPE",type));
-        form.add(labeledControl("INITIAL BALANCE · MATHOS",initial));
+        form.add(labeledControl("INITIAL BALANCE · $MATH",initial));
         surface.add(form,BorderLayout.CENTER);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT,10,0));
@@ -898,7 +898,7 @@ public class BlockchainDashboard extends JPanel {
 
     private void showLoginDialog() {
         Window owner = SwingUtilities.getWindowAncestor(this);
-        JDialog dialog = new JDialog(owner,"Mathos Coin login",Dialog.ModalityType.APPLICATION_MODAL);
+        JDialog dialog = new JDialog(owner,"MathosCoin login",Dialog.ModalityType.APPLICATION_MODAL);
         dialog.setUndecorated(true);
         ModernTheme.RoundedPanel surface = new ModernTheme.RoundedPanel(22,ModernTheme.CARD,ModernTheme.BLUE);
         surface.setLayout(new BorderLayout(0,18));
@@ -1004,6 +1004,10 @@ public class BlockchainDashboard extends JPanel {
         @Override
         protected void paintComponent(Graphics graphics) {
             Graphics2D g = quality(graphics);
+            if(MathosCoinBrand.paintLogo(g,0,0,getWidth(),getHeight())) {
+                g.dispose();
+                return;
+            }
             g.setPaint(new GradientPaint(2,2,ModernTheme.PURPLE,40,40,ModernTheme.BLUE));
             g.fillRoundRect(1,1,40,40,14,14);
             g.setColor(ModernTheme.CANVAS);
@@ -1200,7 +1204,7 @@ public class BlockchainDashboard extends JPanel {
             int index = bubbleAt(event.getPoint());
             if(index < 0) return null;
             BlockchainUIController.WalletView wallet = wallets.get(index);
-            return wallet.label + " · " + wallet.address + " · " + wallet.balanceText + " MATHOS";
+            return wallet.label + " · " + wallet.address + " · " + wallet.balanceText + " $MATH";
         }
 
         private int bubbleAt(Point point) {
@@ -1259,7 +1263,7 @@ public class BlockchainDashboard extends JPanel {
             g.setStroke(new BasicStroke(hover ? 2f : 1f));
             g.draw(bubble.shape);
             drawCentered(g,compact(wallet.label,14),bubble.centerX,bubble.centerY - 8,ModernTheme.font(Font.BOLD,12),ModernTheme.TEXT);
-            String balance = bubbleAmount(wallet.balance) + (bubble.radius < 42 ? "" : " MATHOS");
+            String balance = bubbleAmount(wallet.balance) + (bubble.radius < 42 ? "" : " $MATH");
             drawCentered(g,balance,bubble.centerX,bubble.centerY + 12,ModernTheme.font(Font.BOLD,11),ModernTheme.CYAN);
             if(wallet.nodeType != null) drawCentered(g,wallet.nodeType.name(),bubble.centerX,bubble.centerY + 30,ModernTheme.font(Font.BOLD,9),ModernTheme.MUTED);
         }
@@ -1696,7 +1700,7 @@ public class BlockchainDashboard extends JPanel {
 
         @Override
         public String toString() {
-            return wallet.label + "  ·  " + wallet.balanceText + " MATHOS";
+            return wallet.label + "  ·  " + wallet.balanceText + " $MATH";
         }
     }
 

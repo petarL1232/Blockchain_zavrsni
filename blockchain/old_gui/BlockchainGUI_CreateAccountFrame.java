@@ -4,7 +4,8 @@ import java.awt.*;
 public class BlockchainGUI_CreateAccountFrame extends JFrame {
 
     public BlockchainGUI_CreateAccountFrame(BlockChain blockchain) {
-        setTitle("Create New Account");
+        setTitle("MathosCoin - Create New Account");
+        MathosCoinBrand.applyWindowIcon(this);
         setSize(500, 400);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);

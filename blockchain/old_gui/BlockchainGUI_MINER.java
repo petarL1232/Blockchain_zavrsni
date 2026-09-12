@@ -14,12 +14,13 @@ class BlockchainGUI_MINER extends JFrame {
         this.computer = computer;
 
         
-        this.setTitle("Blockchain GUI - MINER Node " + wallet.getAddress());
+        this.setTitle("MathosCoin - MINER Node " + wallet.getAddress());
+        MathosCoinBrand.applyWindowIcon(this);
         this.setSize(600, 400);
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         this.setLocationRelativeTo(null);
 
-        balanceLabel = new JLabel("Balance: " + Money.format(wallet.getBalance()));
+        balanceLabel = new JLabel("Balance: " + Money.format(wallet.getBalance()) + " $MATH");
         JButton mineBtn = new JButton("Mine Block");
         JButton txBtn = new JButton("Send Transaction");
         JButton refreshBtn = new JButton("Refresh balance");
@@ -80,7 +81,7 @@ class BlockchainGUI_MINER extends JFrame {
     }
 
     private void updateUI() {
-        balanceLabel.setText("Balance: " + Money.format(wallet.getBalance()));
+        balanceLabel.setText("Balance: " + Money.format(wallet.getBalance()) + " $MATH");
         chainArea.setText(blockchain.toString());
     }
 }

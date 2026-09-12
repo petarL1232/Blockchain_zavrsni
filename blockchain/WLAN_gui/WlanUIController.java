@@ -179,17 +179,21 @@ public class WlanUIController implements AutoCloseable {
                         blockchain.getInitialBalance(localWallet.getAddress()));
             }
 
-            ArrayList<Block> storedChain = repository.loadChain();
+            boolean lightNode = settings.nodeType == Computer.NodeType.LIGHT;
+
+            ArrayList<Block> storedChain = lightNode
+                    ? blockchain.getChainSnapshot()
+                    : repository.loadChain();
 
             ArrayList<Transactions> storedMempool = repository.loadMempool();
 
-            boolean chainWasEmpty = storedChain.isEmpty();
+            boolean chainWasEmpty = !lightNode && storedChain.isEmpty();
 
             if (chainWasEmpty) {
                 storedChain = blockchain.getChainSnapshot();
             }
 
-            if (!blockchain.restoreStateFromDatabase(
+            if (!lightNode && !blockchain.restoreStateFromDatabase(
                     storedChain,
                     storedMempool)) {
 
@@ -200,7 +204,7 @@ public class WlanUIController implements AutoCloseable {
             /*
              * Nova baza još nema genesis, pa ga sada trajno spremamo.
              */
-            if (chainWasEmpty) {
+            if (!lightNode && chainWasEmpty) {
                 repository.saveAcceptedBlock(
                         blockchain.getLatestBlock(),
                         blockchain.getTransactionPoolSnapshot());
@@ -213,6 +217,11 @@ public class WlanUIController implements AutoCloseable {
                     NETWORK_ID,
                     blockchain,
                     repository);
+
+            networkNode.configureLightWallet(localWallet.getAddress());
+            if (lightNode) {
+                networkNode.restoreLightPendingTransactions(storedMempool);
+            }
 
             controller = new WlanUIController(
                     blockchain,
@@ -265,9 +274,11 @@ public class WlanUIController implements AutoCloseable {
 
             controller.addActivity(
                     "Lokalni wallet je spreman",
-                    restoredFromDatabase
+                    settings.nodeType == Computer.NodeType.LIGHT
+                            ? "LIGHT wallet je spreman za potpisivanje. FULL/MINER daje nonce i balance, a Merkle proof potvrđuje transakcije."
+                            : restoredFromDatabase
                             ? "Wallet, blockchain i mempool učitani su iz lokalne SQLite baze."
-                            : settings.alias + " ima početnih 100 MATH. Login otključava potpisivanje transakcija.",
+                            : settings.alias + " ima početnih 100 $MATH. Login otključava potpisivanje transakcija.",
                     "info");
 
             return controller;
@@ -289,36 +300,57 @@ public class WlanUIController implements AutoCloseable {
     }
 
     public Snapshot snapshot() {
-        ArrayList<Block> chain;
-        List<Transactions> pending;
+        ArrayList<Block> chain = new ArrayList<>();
+        List<Transactions> pending = new ArrayList<>();
+        ArrayList<BlockChain_LightNodes.BlockHeader> lightHeaders = new ArrayList<>();
         ArrayList<WalletView> walletViews = new ArrayList<>();
         long totalSupply = 0L;
         long localBalance;
         int difficulty;
         BigInteger cumulativeWork;
         boolean mining;
+        boolean lightNode = settings.nodeType == Computer.NodeType.LIGHT;
+        List<NetworkNode.LightTransaction> lightTransactions = lightNode
+                ? networkNode.getLightTransactionsSnapshot()
+                : List.of();
 
         synchronized (blockchain) {
-            chain = blockchain.getChainSnapshot();
-            pending = blockchain.getTransactionPoolSnapshot();
+            if (lightNode && networkNode.getLightBlockchain() != null) {
+                lightHeaders = networkNode.getLightBlockchain().getHeadersSnapshot();
+            } else {
+                chain = blockchain.getChainSnapshot();
+                pending = blockchain.getTransactionPoolSnapshot();
+            }
 
             for (PublicWallet wallet : blockchain.getPublicWalletRegistry().values()) {
-                long balance = wallet.getBalance();
-                try {
-                    totalSupply = Math.addExact(totalSupply, balance);
-                } catch (ArithmeticException ignored) {
-                    totalSupply = Long.MAX_VALUE;
-                }
                 boolean local = wallet.getAddress().equals(localWallet.getAddress());
+                long balance = lightNode && local
+                        ? networkNode.getLightSpendableBalance(localWallet.getAddress())
+                        : wallet.getBalance();
+                if (!lightNode) {
+                    try {
+                        totalSupply = Math.addExact(totalSupply, balance);
+                    } catch (ArithmeticException ignored) {
+                        totalSupply = Long.MAX_VALUE;
+                    }
+                }
                 walletViews.add(new WalletView(wallet.getAddress(),
                         local ? settings.alias : "Wallet " + WlanTheme.compact(wallet.getAddress(), 4), balance,
                         local));
             }
 
-            localBalance = localWallet.getBalance();
-            difficulty = blockchain.getDifficulty();
-            cumulativeWork = blockchain.getCumulativeWork();
-            mining = blockchain.IsMiningInProgress();
+            localBalance = lightNode
+                    ? networkNode.getLightSpendableBalance(localWallet.getAddress())
+                    : localWallet.getBalance();
+            if (lightNode && !lightHeaders.isEmpty()) {
+                difficulty = lightHeaders.get(lightHeaders.size() - 1).difficulty;
+                cumulativeWork = networkNode.getLightBlockchain().getCumulativeWork();
+                mining = false;
+            } else {
+                difficulty = blockchain.getDifficulty();
+                cumulativeWork = blockchain.getCumulativeWork();
+                mining = blockchain.IsMiningInProgress();
+            }
         }
         walletViews.sort(Comparator.comparingLong((WalletView wallet) -> wallet.balance).reversed());
 
@@ -340,6 +372,24 @@ public class WlanUIController implements AutoCloseable {
             }
         }
 
+        for (BlockChain_LightNodes.BlockHeader header : lightHeaders) {
+            blockViews.add(
+                    new BlockView(header.height, header.blockHash, header.previousHash, header.merkleRoot,
+                            header.timestamp, header.nonce, header.difficulty, -1, null));
+        }
+
+        for (NetworkNode.LightTransaction lightTransaction : lightTransactions) {
+            Transactions transaction = lightTransaction.transaction;
+            transactionViews.add(transactionView(
+                    transaction,
+                    lightTransaction.verified ? "VERIFIED" : "PENDING",
+                    lightTransaction.blockHeight,
+                    -1));
+            if (!lightTransaction.verified) {
+                pending.add(transaction);
+            }
+        }
+
         for (Transactions transaction : pending) {
             transactionViews.add(transactionView(transaction, "PENDING", -1, -1));
         }
@@ -350,19 +400,28 @@ public class WlanUIController implements AutoCloseable {
         });
 
         int peerCount = networkNode.getConnectedPeerCount();
-        int height = chain.isEmpty() ? 0 : chain.get(chain.size() - 1).index;
+        int height = lightNode
+                ? lightHeaders.isEmpty() ? 0 : lightHeaders.get(lightHeaders.size() - 1).height
+                : chain.isEmpty() ? 0 : chain.get(chain.size() - 1).index;
         observeChanges(peerCount, height, pending);
 
         ArrayList<ActivityView> activityViews = new ArrayList<>(activity);
-        Block latest = chain.get(chain.size() - 1);
+        String tipHash = lightNode
+                ? lightHeaders.isEmpty() ? "—" : lightHeaders.get(lightHeaders.size() - 1).blockHash
+                : chain.get(chain.size() - 1).hash;
+        NetworkNode.MerkleProofResult networkProof = networkNode.getLastMerkleProofResult();
+        ProofView proof = networkProof == null
+                ? null
+                : new ProofView(networkProof.getBlockHash(), networkProof.getTransactionId(),
+                        networkProof.isVerified(), networkProof.getMessage());
 
         return new Snapshot(
                 settings.nodeId, settings.alias, settings.nodeType, settings.listenPort, localWallet.getAddress(),
                 localBalance, loggedIn, autoModeEnabled, automaticTransactions.get(),
                 rejectedAutomaticTransactions.get(),
-                peerCount, height, latest.hash, difficulty, cumulativeWork, pending.size(),
+                peerCount, height, tipHash, difficulty, cumulativeWork, pending.size(),
                 mining, localBlocksMined, totalSupply, System.currentTimeMillis() - startedAt,
-                walletViews, blockViews, transactionViews, activityViews, shuttingDown.get());
+                walletViews, blockViews, transactionViews, activityViews, proof, shuttingDown.get());
     }
 
     private TransactionView transactionView(Transactions transaction, String status, int blockHeight, int position) {
@@ -455,7 +514,7 @@ public class WlanUIController implements AutoCloseable {
         try {
             amount = Money.fromCoins(amountText);
         } catch (Exception e) {
-            return ActionResult.fail("Upiši valjan MATH iznos s najviše 8 decimala.");
+            return ActionResult.fail("Upiši valjan $MATH iznos s najviše 8 decimala.");
         }
 
         if (amount < ConsensusRules.MIN_TRANSACTION_AMOUNT) {
@@ -476,7 +535,7 @@ public class WlanUIController implements AutoCloseable {
             synchronized (submitLock) {
                 if (!loggedIn)
                     return ActionResult.fail("Lokalni wallet je zaključan.");
-                transaction = blockchain.createTransaction(localWallet, receiverAddress, amount);
+                transaction = networkNode.createTransaction(localWallet, receiverAddress, amount);
                 accepted = networkNode.submitTransaction(transaction);
             }
 
@@ -484,14 +543,18 @@ public class WlanUIController implements AutoCloseable {
                 if (!automatic)
                     addActivity("Transakcija je odbijena", receiverAddress + " nije prošao lokalna consensus pravila.",
                             "danger");
-                return ActionResult.fail("Blockchain nije prihvatio transakciju.");
+                return ActionResult.fail(settings.nodeType == Computer.NodeType.LIGHT
+                        ? "LIGHT nema spojeni FULL/MINER node ili wallet state treba ponovno sinkronizirati."
+                        : "Blockchain nije prihvatio transakciju.");
             }
 
             addActivity(automatic ? "Auto mode je poslao transakciju" : "Transakcija je broadcastana",
                     settings.alias + " → " + WlanTheme.compact(receiverAddress, 7) + " · " + Money.format(amount)
-                            + " MATH",
+                            + " $MATH",
                     "info");
-            return ActionResult.ok("Transakcija je dodana u mempool i poslana peerovima.", transaction.getHash());
+            return ActionResult.ok(settings.nodeType == Computer.NodeType.LIGHT
+                    ? "Transakcija je potpisana i poslana. Čeka potvrdu Merkle proofom."
+                    : "Transakcija je dodana u mempool i poslana peerovima.", transaction.getHash());
         } catch (Exception e) {
             if (!automatic)
                 addActivity("Slanje nije uspjelo", safeMessage(e), "danger");
@@ -625,6 +688,10 @@ public class WlanUIController implements AutoCloseable {
     }
 
     private long getSpendableLocalBalance() {
+        if (settings.nodeType == Computer.NodeType.LIGHT) {
+            return networkNode.getLightSpendableBalance(localWallet.getAddress());
+        }
+
         long spendable = localWallet.getBalance();
 
         for (Transactions transaction : blockchain.getTransactionPoolSnapshot()) {
@@ -654,12 +721,33 @@ public class WlanUIController implements AutoCloseable {
     }
 
     public boolean validateChain() {
-        boolean valid = blockchain.isChainValid();
+        boolean lightNode = settings.nodeType == Computer.NodeType.LIGHT;
+        boolean valid = lightNode
+                ? networkNode.isLightHeaderChainValid()
+                : blockchain.isChainValid();
         addActivity(valid ? "Chain validation je prošao" : "Chain validation nije prošao",
-                valid ? "Svi block hashevi, PoW, transakcije, balancei i nonceovi su konzistentni."
+                valid ? lightNode
+                        ? "Svi LIGHT header hashevi, PoW i previous hash veze su konzistentni."
+                        : "Svi block hashevi, PoW, transakcije, balancei i nonceovi su konzistentni."
                         : "Lokalni blockchain je prijavio problem.",
                 valid ? "success" : "danger");
         return valid;
+    }
+
+    public ActionResult requestMerkleProof(String blockHash, String transactionId) {
+        if (settings.nodeType != Computer.NodeType.LIGHT)
+            return ActionResult.fail("Merkle proof se traži s LIGHT nodea.");
+        if (blockHash == null || blockHash.isBlank() || transactionId == null || transactionId.isBlank())
+            return ActionResult.fail("Odaberi block i unesi transaction ID.");
+
+        boolean sent = networkNode.requestMerkleProof(blockHash.trim(), transactionId.trim());
+        if (!sent)
+            return ActionResult.fail("Nema spojenog FULL ili MINER nodea za Merkle proof.");
+
+        addActivity("Merkle proof je zatražen",
+                "Block " + WlanTheme.compact(blockHash, 7) + " · TX " + WlanTheme.compact(transactionId, 7),
+                "info");
+        return ActionResult.ok("Merkle proof zahtjev je poslan.", transactionId.trim());
     }
 
     public void addActivity(String title, String detail, String tone) {
@@ -738,9 +826,11 @@ public class WlanUIController implements AutoCloseable {
                             blockchain.getInitialBalance(wallet.getAddress()));
                 }
 
-                blockchainRepository.replaceChain(
-                        blockchain.getChainSnapshot(),
-                        blockchain.getTransactionPoolSnapshot());
+                if (settings.nodeType != Computer.NodeType.LIGHT) {
+                    blockchainRepository.replaceChain(
+                            blockchain.getChainSnapshot(),
+                            blockchain.getTransactionPoolSnapshot());
+                }
             }
 
         } catch (Exception e) {
@@ -839,6 +929,7 @@ public class WlanUIController implements AutoCloseable {
         public final List<BlockView> blocks;
         public final List<TransactionView> transactions;
         public final List<ActivityView> activity;
+        public final ProofView proof;
         public final boolean shuttingDown;
 
         private Snapshot(String nodeId, String alias, Computer.NodeType nodeType, int listenPort, String localAddress,
@@ -848,7 +939,7 @@ public class WlanUIController implements AutoCloseable {
                 int difficulty, BigInteger cumulativeWork, int mempoolSize, boolean mining, int localBlocksMined,
                 long totalSupply, long uptime,
                 List<WalletView> wallets, List<BlockView> blocks, List<TransactionView> transactions,
-                List<ActivityView> activity, boolean shuttingDown) {
+                List<ActivityView> activity, ProofView proof, boolean shuttingDown) {
             this.nodeId = nodeId;
             this.alias = alias;
             this.nodeType = nodeType;
@@ -873,6 +964,7 @@ public class WlanUIController implements AutoCloseable {
             this.blocks = List.copyOf(blocks);
             this.transactions = List.copyOf(transactions);
             this.activity = List.copyOf(activity);
+            this.proof = proof;
             this.shuttingDown = shuttingDown;
         }
 
@@ -943,6 +1035,20 @@ public class WlanUIController implements AutoCloseable {
             this.status = status;
             this.blockHeight = blockHeight;
             this.position = position;
+        }
+    }
+
+    public static final class ProofView {
+        public final String blockHash;
+        public final String transactionId;
+        public final boolean verified;
+        public final String message;
+
+        private ProofView(String blockHash, String transactionId, boolean verified, String message) {
+            this.blockHash = blockHash;
+            this.transactionId = transactionId;
+            this.verified = verified;
+            this.message = message;
         }
     }
 

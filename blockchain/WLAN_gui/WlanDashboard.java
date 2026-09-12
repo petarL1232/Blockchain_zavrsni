@@ -1,5 +1,7 @@
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
@@ -19,15 +21,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntConsumer;
 
 public class WlanDashboard extends WlanTheme.BackgroundPanel {
     private final WlanUIController controller;
     private final ExecutorService background;
     private final AtomicBoolean refreshRunning = new AtomicBoolean(false);
+    private final AtomicBoolean actionRunning = new AtomicBoolean(false);
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pages = new JPanel(pageLayout);
     private final Map<String,NavButton> navigation = new HashMap<>();
     private final Timer refreshTimer;
+    private final Timer toastProgressTimer = new Timer(260,event -> updateLoadingToast());
 
     private WlanUIController.Snapshot snapshot;
     private boolean updatingControls;
@@ -43,6 +48,8 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
     private JLabel headerStatus;
     private JLabel headerLogin;
     private JLabel toast;
+    private String toastProgressMessage;
+    private int toastProgressFrame;
 
     private MetricCard peersMetric;
     private MetricCard heightMetric;
@@ -58,19 +65,28 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
     private WlanTheme.Toggle autoToggle;
     private JLabel autoDescription;
     private JLabel balanceValue;
+    private JLabel sendAmountValue;
 
     private JPanel chainList;
+    private SnakeChainView chainView;
     private JPanel blockInspector;
+    private JTextField blockSearchField;
+    private JTextField proofTransactionField;
+    private JTextArea proofResult;
+    private String pendingProofBlockHash;
+    private String pendingProofTransactionId;
     private DefaultTableModel transactionModel;
     private JTable transactionTable;
     private JComboBox<String> transactionFilter;
+    private JTextField transactionAddressSearch;
     private ZoomableWalletView walletView;
     private JPanel walletInspector;
     private JPanel activityList;
     private JLabel identityState;
     private WlanTheme.AccentButton identityLoginButton;
+    private WlanTheme.AccentButton validateButton;
     private JTextField publicLoginHash;
-    private JTextField privateLoginHash;
+    private JPasswordField privateLoginHash;
 
     public WlanDashboard(WlanUIController controller) {
         super(new BorderLayout());
@@ -83,6 +99,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             return thread;
         };
         background = Executors.newSingleThreadExecutor(daemonFactory);
+        toastProgressTimer.setCoalesce(true);
 
         add(buildRail(),BorderLayout.WEST);
         add(buildMainArea(),BorderLayout.CENTER);
@@ -156,8 +173,8 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         JPanel brand = new JPanel();
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand,BoxLayout.Y_AXIS));
-        JLabel name = WlanTheme.title("MATHOSCOIN",22);
-        JLabel subtitle = WlanTheme.label("WLAN NODE CONTROL CENTER  /  MATH",12,WlanTheme.CYAN);
+        JLabel name = WlanTheme.title("MathosCoin",22);
+        JLabel subtitle = WlanTheme.label("WLAN NODE CONTROL CENTER  /  $MATH",12,WlanTheme.CYAN);
         brand.add(name);
         brand.add(Box.createVerticalStrut(2));
         brand.add(subtitle);
@@ -190,7 +207,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
 
         JPanel metrics = new JPanel(new GridLayout(1,4,12,0));
         metrics.setOpaque(false);
-        metrics.setPreferredSize(new Dimension(0,102));
+        metrics.setPreferredSize(new Dimension(0,96));
         peersMetric = new MetricCard("DIRECT PEERS","0","UDP discovery configured",WlanTheme.CYAN);
         heightMetric = new MetricCard("CHAIN HEIGHT","0","Genesis only",WlanTheme.PRIMARY_LIGHT);
         mempoolMetric = new MetricCard("MEMPOOL","0","Waiting for traffic",WlanTheme.PURPLE);
@@ -222,7 +239,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
 
         JPanel lower = new JPanel(new BorderLayout(12,0));
         lower.setOpaque(false);
-        lower.setPreferredSize(new Dimension(0,205));
+        lower.setPreferredSize(new Dimension(0,180));
         lower.setBorder(new EmptyBorder(12,0,0,0));
 
         WlanTheme.Card chainCard = card(new BorderLayout());
@@ -261,7 +278,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         WlanTheme.Card card = card(new BorderLayout());
         card.add(sectionHeader("LOCAL COMMAND DECK","Signing is restricted to your session wallet"),BorderLayout.NORTH);
 
-        JPanel body = new JPanel();
+        VerticalScrollPanel body = new VerticalScrollPanel();
         body.setOpaque(false);
         body.setBorder(new EmptyBorder(4,18,16,18));
         body.setLayout(new BoxLayout(body,BoxLayout.Y_AXIS));
@@ -274,11 +291,11 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         walletText.setOpaque(false);
         walletText.setLayout(new BoxLayout(walletText,BoxLayout.Y_AXIS));
         walletText.add(WlanTheme.label("AVAILABLE BALANCE",12,WlanTheme.MUTED));
-        balanceValue = WlanTheme.title("— MATH",24);
+        balanceValue = WlanTheme.title("— $MATH",24);
         walletText.add(balanceValue);
         walletLine.add(walletText,BorderLayout.CENTER);
         loginButton = new WlanTheme.AccentButton("LOGIN",false);
-        loginButton.setPreferredSize(new Dimension(88,38));
+        loginButton.setPreferredSize(new Dimension(106,38));
         loginButton.addActionListener(event -> showLoginDialog());
         walletLine.add(loginButton,BorderLayout.EAST);
         body.add(walletLine);
@@ -291,19 +308,39 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         body.add(roundedComboBox(receiverBox,0,42));
         body.add(Box.createVerticalStrut(11));
 
-        body.add(fieldLabel("AMOUNT / MATH"));
+        body.add(fieldLabel("AMOUNT / $MATH"));
         amountField = new WlanTheme.RoundedTextField("1");
-        amountField.getAccessibleContext().setAccessibleName("Amount in MATH");
+        amountField.getAccessibleContext().setAccessibleName("Amount in $MATH");
         amountField.setMaximumSize(new Dimension(Integer.MAX_VALUE,42));
         amountField.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(amountField);
-        body.add(Box.createVerticalStrut(13));
+        body.add(Box.createVerticalStrut(9));
+
+        JPanel transferPreview = new JPanel(new FlowLayout(FlowLayout.LEFT,0,0));
+        transferPreview.setOpaque(false);
+        transferPreview.setAlignmentX(Component.LEFT_ALIGNMENT);
+        transferPreview.setMaximumSize(new Dimension(Integer.MAX_VALUE,26));
+        transferPreview.add(MathosCoinBrand.logo(22));
+        transferPreview.add(Box.createHorizontalStrut(7));
+        sendAmountValue = WlanTheme.label("SENDING 1 $MATH",13,WlanTheme.CYAN);
+        sendAmountValue.setFont(WlanTheme.font(Font.BOLD,13));
+        transferPreview.add(sendAmountValue);
+        body.add(transferPreview);
+        body.add(Box.createVerticalStrut(9));
+
+        amountField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { updateSendAmountPreview(); }
+            @Override public void removeUpdate(DocumentEvent event) { updateSendAmountPreview(); }
+            @Override public void changedUpdate(DocumentEvent event) { updateSendAmountPreview(); }
+        });
 
         sendButton = new WlanTheme.AccentButton("SIGN + BROADCAST",true);
         sendButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         sendButton.setMaximumSize(new Dimension(Integer.MAX_VALUE,42));
+        sendButton.setEnabled(false);
         sendButton.addActionListener(event -> sendTransaction());
         body.add(sendButton);
+        body.add(Box.createVerticalStrut(16));
         body.add(Box.createVerticalGlue());
 
         JSeparator separator = new JSeparator();
@@ -314,7 +351,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
 
         JPanel autoLine = new JPanel(new BorderLayout(12,0));
         autoLine.setOpaque(false);
-        autoLine.setMaximumSize(new Dimension(Integer.MAX_VALUE,48));
+        autoLine.setMinimumSize(new Dimension(0,62));
+        autoLine.setPreferredSize(new Dimension(0,62));
+        autoLine.setMaximumSize(new Dimension(Integer.MAX_VALUE,62));
+        autoLine.setBorder(new EmptyBorder(4,18,8,18));
         autoLine.setAlignmentX(Component.LEFT_ALIGNMENT);
         JPanel autoText = new JPanel();
         autoText.setOpaque(false);
@@ -324,43 +364,76 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         autoText.add(autoDescription);
         autoLine.add(autoText,BorderLayout.CENTER);
         autoToggle = new WlanTheme.Toggle();
+        autoToggle.setEnabled(false);
         autoToggle.setToolTipText("Enable local Auto Mode");
         autoToggle.getAccessibleContext().setAccessibleName("Local Auto Mode");
         autoToggle.addActionListener(event -> changeAutoMode());
-        JPanel togglePosition = new JPanel(new FlowLayout(FlowLayout.RIGHT,0,10));
+        JPanel togglePosition = new JPanel(new FlowLayout(FlowLayout.RIGHT,0,8));
         togglePosition.setOpaque(false);
         togglePosition.add(autoToggle);
         autoLine.add(togglePosition,BorderLayout.EAST);
-        body.add(autoLine);
-        card.add(body,BorderLayout.CENTER);
+        JScrollPane bodyScroll = WlanTheme.scroll(body);
+        bodyScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        bodyScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        card.add(bodyScroll,BorderLayout.CENTER);
+        card.add(autoLine,BorderLayout.SOUTH);
         return card;
     }
 
     private JComponent buildChainPage() {
         JPanel page = pagePanel();
-        page.add(pageTitle("BLOCKCHAIN","Inspect the locally accepted proof-of-work history"),BorderLayout.NORTH);
+        JPanel title = new JPanel(new BorderLayout(14,0));
+        title.setOpaque(false);
+        title.add(pageTitle("BLOCKCHAIN","Inspect the locally accepted proof-of-work history"),BorderLayout.WEST);
+
+        JPanel search = new JPanel(new BorderLayout(7,0));
+        search.setOpaque(false);
+        blockSearchField = new WlanTheme.RoundedTextField();
+        blockSearchField.putClientProperty("JTextField.placeholderText","Block # or hash");
+        blockSearchField.setToolTipText("Search by exact block height or by hash");
+        blockSearchField.getAccessibleContext().setAccessibleName("Search blockchain by height or hash");
+        blockSearchField.addActionListener(event -> searchBlock());
+        WlanTheme.AccentButton find = new WlanTheme.AccentButton("FIND",false);
+        find.addActionListener(event -> searchBlock());
+        JLabel blockSearchLabel = WlanTheme.label("BLOCK # / HASH",11,WlanTheme.MUTED);
+        blockSearchLabel.setBorder(new EmptyBorder(0,0,0,5));
+        search.add(blockSearchLabel,BorderLayout.WEST);
+        search.add(blockSearchField,BorderLayout.CENTER);
+        search.add(find,BorderLayout.EAST);
+        search.setPreferredSize(new Dimension(310,42));
+        title.add(search,BorderLayout.EAST);
+        page.add(title,BorderLayout.NORTH);
 
         JPanel content = new JPanel(new BorderLayout(12,0));
         content.setOpaque(false);
         content.setBorder(new EmptyBorder(14,0,0,0));
 
         WlanTheme.Card listCard = card(new BorderLayout());
-        listCard.add(sectionHeader("BLOCK STREAM","Select a block for full header details"),BorderLayout.NORTH);
+        listCard.add(sectionHeader("CONNECTED BLOCK MAP","Genesis starts below · the chain snakes upward as it grows"),BorderLayout.NORTH);
         chainList = new JPanel();
         chainList.setOpaque(false);
         chainList.setBorder(new EmptyBorder(5,12,14,12));
         chainList.setLayout(new BoxLayout(chainList,BoxLayout.Y_AXIS));
-        listCard.add(WlanTheme.scroll(chainList),BorderLayout.CENTER);
+        chainView = new SnakeChainView(height -> {
+            selectedBlockHeight = height;
+            blockSelectionLocked = true;
+            updateBlockInspector();
+        });
+        JScrollPane chainScroll = WlanTheme.scroll(chainView);
+        chainScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        listCard.add(chainScroll,BorderLayout.CENTER);
         content.add(listCard,BorderLayout.CENTER);
 
         WlanTheme.Card inspectorCard = card(new BorderLayout());
-        inspectorCard.setPreferredSize(new Dimension(390,0));
-        inspectorCard.add(sectionHeader("BLOCK INSPECTOR","Header data verified by this node"),BorderLayout.NORTH);
+        inspectorCard.setPreferredSize(new Dimension(425,0));
+        inspectorCard.add(sectionHeader("BLOCK INSPECTOR","Header and every transaction inside the selected block"),BorderLayout.NORTH);
         blockInspector = new JPanel();
         blockInspector.setOpaque(false);
         blockInspector.setBorder(new EmptyBorder(6,18,18,18));
         blockInspector.setLayout(new BoxLayout(blockInspector,BoxLayout.Y_AXIS));
-        inspectorCard.add(blockInspector,BorderLayout.CENTER);
+        JScrollPane inspectorScroll = WlanTheme.scroll(blockInspector);
+        inspectorScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        inspectorCard.add(inspectorScroll,BorderLayout.CENTER);
         content.add(inspectorCard,BorderLayout.EAST);
         page.add(content,BorderLayout.CENTER);
         return page;
@@ -371,20 +444,36 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         JPanel title = new JPanel(new BorderLayout());
         title.setOpaque(false);
         title.add(pageTitle("TRANSACTIONS","Confirmed history and the live local mempool"),BorderLayout.WEST);
-        transactionFilter = new JComboBox<>(new String[]{"ALL","PENDING","CONFIRMED","SYSTEM REWARD","REGULAR"});
+
+        JPanel transactionControls = new JPanel(new FlowLayout(FlowLayout.RIGHT,8,0));
+        transactionControls.setOpaque(false);
+        transactionAddressSearch = new WlanTheme.RoundedTextField();
+        transactionAddressSearch.putClientProperty("JTextField.placeholderText","Sender or receiver address");
+        transactionAddressSearch.setToolTipText("Filter transactions by sender or receiver address");
+        transactionAddressSearch.getAccessibleContext().setAccessibleName("Search transactions by address");
+        transactionAddressSearch.setPreferredSize(new Dimension(220,40));
+        transactionAddressSearch.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { updateTransactionTable(); }
+            @Override public void removeUpdate(DocumentEvent event) { updateTransactionTable(); }
+            @Override public void changedUpdate(DocumentEvent event) { updateTransactionTable(); }
+        });
+        transactionControls.add(WlanTheme.label("ADDRESS",11,WlanTheme.MUTED));
+        transactionFilter = new JComboBox<>(new String[]{"ALL","PENDING","VERIFIED","CONFIRMED","SYSTEM REWARD","REGULAR"});
         transactionFilter.addActionListener(event -> updateTransactionTable());
-        title.add(roundedComboBox(transactionFilter,180,40),BorderLayout.EAST);
+        transactionControls.add(transactionAddressSearch);
+        transactionControls.add(roundedComboBox(transactionFilter,150,40));
+        title.add(transactionControls,BorderLayout.EAST);
         page.add(title,BorderLayout.NORTH);
 
         WlanTheme.Card tableCard = card(new BorderLayout());
         tableCard.setBorder(new EmptyBorder(0,0,0,0));
-        tableCard.add(sectionHeader("LEDGER TRAFFIC","Amounts are stored in exact long units · 1 MATH = 100,000,000 units"),BorderLayout.NORTH);
+        tableCard.add(sectionHeader("LEDGER TRAFFIC","Amounts are stored in exact long units · 1 $MATH = 100,000,000 units"),BorderLayout.NORTH);
         transactionModel = new DefaultTableModel(
                 new Object[]{"STATUS","TYPE","AMOUNT","FROM","TO","TX NONCE","BLOCK","TX ID"},0) {
             @Override public boolean isCellEditable(int row,int column) { return false; }
         };
         transactionTable = new JTable(transactionModel);
-        transactionTable.getAccessibleContext().setAccessibleName("MATHOSCOIN transactions");
+        transactionTable.getAccessibleContext().setAccessibleName("MathosCoin transactions");
         styleTable(transactionTable);
         tableCard.add(WlanTheme.scroll(transactionTable),BorderLayout.CENTER);
         tableCard.setBorder(new EmptyBorder(14,0,0,0));
@@ -480,8 +569,8 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         body.add(fieldWithCopy(publicLoginHash));
         body.add(Box.createVerticalStrut(10));
         body.add(fieldLabel("PRIVATE LOGIN HASH"));
-        privateLoginHash = readonlyField("");
-        body.add(fieldWithCopy(privateLoginHash));
+        privateLoginHash = readonlySecretField("");
+        body.add(secretFieldWithCopy(privateLoginHash));
         body.add(Box.createVerticalStrut(14));
 
         JPanel actions = new JPanel(new GridLayout(1,2,10,0));
@@ -541,10 +630,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             String peerPort = port.getText();
             executeAction("Connecting",() -> controller.connectManually(ipAddress,peerPort));
         });
-        WlanTheme.AccentButton validate = new WlanTheme.AccentButton("VALIDATE CHAIN",false);
-        validate.addActionListener(event -> validateChain());
+        validateButton = new WlanTheme.AccentButton("VALIDATE CHAIN",false);
+        validateButton.addActionListener(event -> validateChain());
         actions.add(connect);
-        actions.add(validate);
+        actions.add(validateButton);
         body.add(actions);
         card.add(body,BorderLayout.CENTER);
         return card;
@@ -628,6 +717,18 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         return field;
     }
 
+    private JPasswordField readonlySecretField(String value) {
+        JPasswordField field = new JPasswordField(value);
+        field.setEditable(false);
+        field.setOpaque(false);
+        field.setForeground(WlanTheme.TEXT_SOFT);
+        field.setCaretColor(WlanTheme.CYAN);
+        field.setFont(new Font(Font.MONOSPACED,Font.PLAIN,13));
+        field.setBorder(new EmptyBorder(9,12,9,12));
+        field.setEchoChar('•');
+        return field;
+    }
+
     private JComponent fieldWithCopy(JTextField field) {
         JPanel panel = new JPanel(new BorderLayout(7,0));
         panel.setOpaque(false);
@@ -637,6 +738,61 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         WlanTheme.AccentButton copy = new WlanTheme.AccentButton("COPY",false);
         copy.addActionListener(event -> copy(field.getText()));
         panel.add(copy,BorderLayout.EAST);
+        return panel;
+    }
+
+    private JComponent secretFieldWithCopy(JPasswordField field) {
+        WlanTheme.ControlSurface panel = new WlanTheme.ControlSurface(new BorderLayout(6,0));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE,44));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(field,BorderLayout.CENTER);
+
+        JPanel actions = new JPanel(new GridLayout(1,2,5,0));
+        actions.setOpaque(false);
+        WlanTheme.AccentButton reveal = new WlanTheme.AccentButton("SHOW",false);
+        reveal.setBorder(new EmptyBorder(7,10,7,10));
+        reveal.setToolTipText("Show or hide the private login hash");
+        reveal.getAccessibleContext().setAccessibleName("Show private login hash");
+        reveal.addActionListener(event -> {
+            boolean hidden = field.getEchoChar() != 0;
+            field.setEchoChar(hidden ? (char) 0 : '•');
+            reveal.setText(hidden ? "HIDE" : "SHOW");
+            reveal.getAccessibleContext().setAccessibleName((hidden ? "Hide" : "Show") + " private login hash");
+        });
+        WlanTheme.AccentButton copy = new WlanTheme.AccentButton("COPY",false);
+        copy.setBorder(new EmptyBorder(7,10,7,10));
+        copy.addActionListener(event -> copy(new String(field.getPassword())));
+        actions.add(reveal);
+        actions.add(copy);
+        panel.add(actions,BorderLayout.EAST);
+        return panel;
+    }
+
+    private JPasswordField secretInput() {
+        JPasswordField field = new JPasswordField();
+        field.setOpaque(false);
+        field.setForeground(WlanTheme.TEXT);
+        field.setCaretColor(WlanTheme.CYAN);
+        field.setFont(WlanTheme.font(Font.PLAIN,15));
+        field.setBorder(new EmptyBorder(10,13,10,13));
+        field.setEchoChar('•');
+        return field;
+    }
+
+    private JComponent secretInputWithEye(JPasswordField field) {
+        WlanTheme.ControlSurface panel = new WlanTheme.ControlSurface(new BorderLayout(5,0));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE,44));
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(field,BorderLayout.CENTER);
+        WlanTheme.AccentButton reveal = new WlanTheme.AccentButton("SHOW",false);
+        reveal.setBorder(new EmptyBorder(7,11,7,11));
+        reveal.setToolTipText("Show or hide the private login hash");
+        reveal.addActionListener(event -> {
+            boolean hidden = field.getEchoChar() != 0;
+            field.setEchoChar(hidden ? (char) 0 : '•');
+            reveal.setText(hidden ? "HIDE" : "SHOW");
+        });
+        panel.add(reveal,BorderLayout.EAST);
         return panel;
     }
 
@@ -710,6 +866,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
     private void applySnapshot(WlanUIController.Snapshot next) {
         snapshot = next;
         updatingControls = true;
+        boolean lightNode = next.nodeType == Computer.NodeType.LIGHT;
 
         headerNode.setText(WlanTheme.compact(next.nodeId,10) + "  ·  " + next.nodeType + "  ·  :" + next.listenPort);
         headerStatus.setText(next.peerCount == 0 ? "NO DIRECT PEERS" : "CONNECTED  " + next.peerCount);
@@ -718,13 +875,15 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         headerLogin.setForeground(next.loggedIn ? WlanTheme.SUCCESS : WlanTheme.MUTED);
 
         peersMetric.update(String.valueOf(next.peerCount),next.peerCount == 0 ? "Attempting UDP 4999" : "Direct TCP connections");
-        heightMetric.update(String.valueOf(next.chainHeight),"Tip " + WlanTheme.compact(next.tipHash,6));
-        mempoolMetric.update(String.valueOf(next.mempoolSize),next.mempoolSize == 0 ? "Waiting for traffic" : "Ready for mining");
-        workMetric.update(WlanTheme.compact(next.cumulativeWork.toString(),8),"Difficulty " + next.difficulty);
-        balanceValue.setText(Money.format(next.localBalance) + " MATH");
+        heightMetric.update(String.valueOf(next.chainHeight),(lightNode ? "Verified header " : "Tip ") + WlanTheme.compact(next.tipHash,6));
+        mempoolMetric.update(String.valueOf(next.mempoolSize),lightNode
+                ? "Own pending · Merkle verified"
+                : next.mempoolSize == 0 ? "Waiting for traffic" : "Ready for mining");
+        workMetric.update(WlanTheme.compact(next.cumulativeWork.toString(),8),(lightNode ? "Header work · difficulty " : "Difficulty ") + next.difficulty);
+        balanceValue.setText(Money.format(next.localBalance) + " $MATH");
 
         loginButton.setText(next.loggedIn ? "LOGOUT" : "LOGIN");
-        sendButton.setEnabled(next.loggedIn);
+        sendButton.setEnabled(next.loggedIn && !actionRunning.get());
         receiverBox.setEnabled(next.loggedIn);
         amountField.setEnabled(next.loggedIn);
         autoToggle.setEnabled(next.loggedIn);
@@ -732,12 +891,14 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         autoDescription.setText(next.loggedIn
                 ? (next.autoMode ? next.autoSent + " sent · " + next.autoRejected + " rejected" : "Only this node will generate traffic")
                 : "Login required");
+        if(validateButton != null) validateButton.setText(lightNode ? "VALIDATE HEADERS" : "VALIDATE CHAIN");
 
         topologyView.setSnapshot(next);
         chainRibbon.setBlocks(next.blocks);
         miningPanel.setSnapshot(next);
         updateReceiverChoices(next.wallets);
         updateChain(next.blocks);
+        updateProofResult(next.proof);
         updateTransactions(next.transactions);
         updateWallets(next.wallets);
         updateActivity(next.activity);
@@ -765,25 +926,54 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         String fingerprint = blocks.size() + ":" + (blocks.isEmpty() ? "" : blocks.get(blocks.size() - 1).hash);
         if(fingerprint.equals(chainFingerprint)) return;
         chainFingerprint = fingerprint;
-        chainList.removeAll();
-
-        for(int i = blocks.size() - 1; i >= 0; i--) {
-            WlanUIController.BlockView block = blocks.get(i);
-            BlockRow row = new BlockRow(block);
-            row.setAlignmentX(Component.LEFT_ALIGNMENT);
-            row.setMaximumSize(new Dimension(Integer.MAX_VALUE,104));
-            chainList.add(row);
-            chainList.add(Box.createVerticalStrut(8));
-        }
 
         if(!blockSelectionLocked && !blocks.isEmpty()) selectedBlockHeight = blocks.get(blocks.size() - 1).height;
+        chainView.setBlocks(blocks,selectedBlockHeight);
         updateBlockInspector();
-        chainList.revalidate();
-        chainList.repaint();
+        chainView.revalidate();
+        chainView.repaint();
+    }
+
+    private void searchBlock() {
+        if(snapshot == null || blockSearchField == null) return;
+        String query = blockSearchField.getText() == null ? "" : blockSearchField.getText().trim();
+        if(query.startsWith("#")) query = query.substring(1).trim();
+        if(query.isBlank()) {
+            showToast("Enter a block height or hash",WlanTheme.WARNING);
+            return;
+        }
+
+        WlanUIController.BlockView found = null;
+        try {
+            int height = Integer.parseInt(query);
+            for(WlanUIController.BlockView block : snapshot.blocks) if(block.height == height) found = block;
+        } catch(NumberFormatException ignored) {
+            String hash = query.toLowerCase();
+            for(int i = snapshot.blocks.size() - 1; i >= 0; i--) {
+                WlanUIController.BlockView block = snapshot.blocks.get(i);
+                if(block.hash != null && block.hash.toLowerCase().contains(hash)) {
+                    found = block;
+                    break;
+                }
+            }
+        }
+
+        if(found == null) {
+            showToast("Block not found · " + query,WlanTheme.WARNING);
+            return;
+        }
+
+        selectedBlockHeight = found.height;
+        blockSelectionLocked = true;
+        chainView.setSelectedHeight(found.height);
+        chainView.scrollToBlock(found.height);
+        updateBlockInspector();
+        showToast("Selected block #" + found.height,WlanTheme.SUCCESS);
     }
 
     private void updateBlockInspector() {
         if(snapshot == null || blockInspector == null) return;
+        String proofInput = proofTransactionField == null ? "" : proofTransactionField.getText();
         WlanUIController.BlockView selected = null;
         for(WlanUIController.BlockView block : snapshot.blocks) if(block.height == selectedBlockHeight) selected = block;
 
@@ -792,7 +982,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             blockInspector.add(WlanTheme.label("Select a block.",12,WlanTheme.MUTED));
         } else {
             blockInspector.add(WlanTheme.title("BLOCK #" + selected.height,26));
-            blockInspector.add(WlanTheme.label(selected.height == 0 ? "DETERMINISTIC GENESIS" : "PROOF-OF-WORK ACCEPTED",12,
+            String blockState = snapshot.nodeType == Computer.NodeType.LIGHT
+                    ? "HEADER VERIFIED BY LIGHT NODE"
+                    : selected.height == 0 ? "DETERMINISTIC GENESIS" : "PROOF-OF-WORK ACCEPTED";
+            blockInspector.add(WlanTheme.label(blockState,12,
                     selected.height == 0 ? WlanTheme.PURPLE : WlanTheme.SUCCESS));
             blockInspector.add(Box.createVerticalStrut(18));
             addInspectorValue(blockInspector,"HASH",selected.hash);
@@ -800,25 +993,161 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             addInspectorValue(blockInspector,"MERKLE ROOT",selected.merkleRoot);
             addInspectorValue(blockInspector,"DIFFICULTY",String.valueOf(selected.difficulty));
             addInspectorValue(blockInspector,"MINING NONCE",String.valueOf(selected.nonce));
-            addInspectorValue(blockInspector,"TRANSACTIONS",String.valueOf(selected.transactionCount));
+            addInspectorValue(blockInspector,"TRANSACTIONS",selected.transactionCount < 0 ? "NOT STORED · HEADER ONLY" : String.valueOf(selected.transactionCount));
             addInspectorValue(blockInspector,"MINER",selected.minerAddress == null ? "—" : selected.minerAddress);
             addInspectorValue(blockInspector,"TIME",selected.timestamp == 0 ? "Genesis constant" : new SimpleDateFormat("dd.MM.yyyy  HH:mm:ss").format(new Date(selected.timestamp)));
+            blockInspector.add(Box.createVerticalStrut(7));
+            JSeparator separator = new JSeparator();
+            separator.setForeground(WlanTheme.BORDER);
+            separator.setMaximumSize(new Dimension(Integer.MAX_VALUE,1));
+            blockInspector.add(separator);
+            blockInspector.add(Box.createVerticalStrut(15));
+            blockInspector.add(WlanTheme.title("BLOCK TRANSACTIONS",14));
+            blockInspector.add(Box.createVerticalStrut(9));
+
+            int transactionCount = 0;
+            for(WlanUIController.TransactionView transaction : snapshot.transactions) {
+                if(transaction.blockHeight != selected.height) continue;
+                blockInspector.add(new BlockTransactionRow(transaction));
+                blockInspector.add(Box.createVerticalStrut(7));
+                transactionCount++;
+            }
+            if(transactionCount == 0) {
+                String empty = snapshot.nodeType == Computer.NodeType.LIGHT
+                        ? "Light node keeps the verified header. Individual transactions are verified through Merkle proofs."
+                        : "This block contains no transactions.";
+                JTextArea message = new JTextArea(empty);
+                message.setEditable(false);
+                message.setLineWrap(true);
+                message.setWrapStyleWord(true);
+                message.setOpaque(false);
+                message.setForeground(WlanTheme.MUTED);
+                message.setFont(WlanTheme.font(Font.PLAIN,12));
+                message.setMaximumSize(new Dimension(Integer.MAX_VALUE,58));
+                blockInspector.add(message);
+            }
+            if(snapshot.nodeType == Computer.NodeType.LIGHT) addMerkleProofControls(selected,proofInput);
         }
         blockInspector.revalidate();
         blockInspector.repaint();
     }
 
+    private void addMerkleProofControls(WlanUIController.BlockView block,String previousInput) {
+        blockInspector.add(Box.createVerticalStrut(14));
+        JSeparator separator = new JSeparator();
+        separator.setForeground(WlanTheme.BORDER);
+        separator.setMaximumSize(new Dimension(Integer.MAX_VALUE,1));
+        blockInspector.add(separator);
+        blockInspector.add(Box.createVerticalStrut(15));
+        blockInspector.add(WlanTheme.title("MERKLE PROOF",14));
+        blockInspector.add(Box.createVerticalStrut(4));
+        blockInspector.add(WlanTheme.label("Verify one transaction without downloading the full block",12,WlanTheme.MUTED));
+        blockInspector.add(Box.createVerticalStrut(11));
+
+        proofTransactionField = new WlanTheme.RoundedTextField(previousInput == null ? "" : previousInput);
+        proofTransactionField.putClientProperty("JTextField.placeholderText","Transaction ID");
+        proofTransactionField.setToolTipText("Paste the transaction ID from a FULL or MINER node");
+        proofTransactionField.getAccessibleContext().setAccessibleName("Transaction ID for Merkle proof");
+        proofTransactionField.setMaximumSize(new Dimension(Integer.MAX_VALUE,42));
+        proofTransactionField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        proofTransactionField.addActionListener(event -> requestMerkleProof(block));
+        blockInspector.add(proofTransactionField);
+        blockInspector.add(Box.createVerticalStrut(8));
+
+        WlanTheme.AccentButton verify = new WlanTheme.AccentButton("REQUEST + VERIFY",true);
+        verify.setMaximumSize(new Dimension(Integer.MAX_VALUE,42));
+        verify.setAlignmentX(Component.LEFT_ALIGNMENT);
+        verify.addActionListener(event -> requestMerkleProof(block));
+        blockInspector.add(verify);
+        blockInspector.add(Box.createVerticalStrut(10));
+
+        proofResult = new JTextArea();
+        proofResult.setEditable(false);
+        proofResult.setLineWrap(true);
+        proofResult.setWrapStyleWord(true);
+        proofResult.setOpaque(false);
+        proofResult.setFont(WlanTheme.font(Font.PLAIN,12));
+        proofResult.setMaximumSize(new Dimension(Integer.MAX_VALUE,62));
+        proofResult.setAlignmentX(Component.LEFT_ALIGNMENT);
+        blockInspector.add(proofResult);
+        updateProofResult(snapshot.proof);
+    }
+
+    private void requestMerkleProof(WlanUIController.BlockView block) {
+        if(actionRunning.get()) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        String transactionId = proofTransactionField == null ? "" : proofTransactionField.getText().trim();
+        if(transactionId.isBlank()) {
+            showToast("Enter a transaction ID for the selected block",WlanTheme.WARNING);
+            proofTransactionField.requestFocusInWindow();
+            return;
+        }
+
+        pendingProofBlockHash = block.hash;
+        pendingProofTransactionId = transactionId;
+        updateProofResult(null);
+        executeAction("Requesting Merkle proof",() -> controller.requestMerkleProof(block.hash,transactionId));
+    }
+
+    private void updateProofResult(WlanUIController.ProofView proof) {
+        if(proofResult == null) return;
+        if(proof == null) {
+            boolean waiting = pendingProofBlockHash != null && pendingProofTransactionId != null;
+            proofResult.setText(waiting
+                    ? "VERIFYING · waiting for a FULL or MINER peer response…"
+                    : "READY · enter a transaction ID from this block.");
+            proofResult.setForeground(waiting ? WlanTheme.CYAN : WlanTheme.MUTED);
+            return;
+        }
+
+        boolean expected = proof.blockHash != null
+                && proof.transactionId != null
+                && proof.blockHash.equals(pendingProofBlockHash)
+                && proof.transactionId.equals(pendingProofTransactionId);
+        if(pendingProofBlockHash != null && !expected) {
+            proofResult.setText("VERIFYING · waiting for a FULL or MINER peer response…");
+            proofResult.setForeground(WlanTheme.CYAN);
+            return;
+        }
+
+        String selectedHash = null;
+        if(snapshot != null) {
+            for(WlanUIController.BlockView block : snapshot.blocks) {
+                if(block.height == selectedBlockHeight) selectedHash = block.hash;
+            }
+        }
+        if(pendingProofBlockHash == null && selectedHash != null && !selectedHash.equals(proof.blockHash)) {
+            proofResult.setText("READY · enter a transaction ID from this block.");
+            proofResult.setForeground(WlanTheme.MUTED);
+            return;
+        }
+
+        if(expected || pendingProofBlockHash == null) {
+            pendingProofBlockHash = null;
+            pendingProofTransactionId = null;
+        }
+        proofResult.setText((proof.verified ? "VERIFIED · " : "REJECTED · ") + proof.message);
+        proofResult.setForeground(proof.verified ? WlanTheme.SUCCESS : WlanTheme.DANGER);
+    }
+
     private void addInspectorValue(JPanel panel,String label,String value) {
         panel.add(WlanTheme.label(label,12,WlanTheme.MUTED));
         JTextArea area = new JTextArea(value == null ? "—" : value);
+        int rows = value != null && value.length() > 44 ? 2 : 1;
         area.setEditable(false);
         area.setLineWrap(true);
         area.setWrapStyleWord(false);
         area.setOpaque(false);
         area.setForeground(WlanTheme.TEXT_SOFT);
         area.setFont(WlanTheme.font(Font.PLAIN,12));
+        area.setRows(rows);
         area.setBorder(new EmptyBorder(3,0,10,0));
-        area.setMaximumSize(new Dimension(Integer.MAX_VALUE,52));
+        int height = rows == 2 ? 48 : 31;
+        area.setMinimumSize(new Dimension(0,height));
+        area.setPreferredSize(new Dimension(area.getPreferredSize().width,height));
+        area.setMaximumSize(new Dimension(Integer.MAX_VALUE,height));
         panel.add(area);
     }
 
@@ -836,17 +1165,22 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
     private void updateTransactionTable() {
         if(snapshot == null || transactionModel == null) return;
         String filter = transactionFilter == null ? "ALL" : String.valueOf(transactionFilter.getSelectedItem());
+        String address = transactionAddressSearch == null || transactionAddressSearch.getText() == null
+                ? "" : transactionAddressSearch.getText().trim().toLowerCase();
         transactionModel.setRowCount(0);
 
         for(WlanUIController.TransactionView transaction : snapshot.transactions) {
             if(!"ALL".equals(filter)
                     && !filter.equals(transaction.status)
                     && !filter.equals(transaction.type)) continue;
+            String sender = transaction.sender == null ? "" : transaction.sender.toLowerCase();
+            String receiver = transaction.receiver == null ? "" : transaction.receiver.toLowerCase();
+            if(!address.isBlank() && !sender.contains(address) && !receiver.contains(address)) continue;
 
             transactionModel.addRow(new Object[]{
                     transaction.status,
                     transaction.type,
-                    Money.format(transaction.amount) + " MATH",
+                    Money.format(transaction.amount) + " $MATH",
                     "SYSTEM REWARD".equals(transaction.type) ? "SYSTEM" : WlanTheme.compact(transaction.sender,7),
                     WlanTheme.compact(transaction.receiver,7),
                     transaction.nonce,
@@ -858,6 +1192,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
 
     private void updateWallets(List<WlanUIController.WalletView> wallets) {
         StringBuilder fingerprint = new StringBuilder();
+        fingerprint.append(wallets.size()).append('|');
         for(WlanUIController.WalletView wallet : wallets) {
             fingerprint.append(wallet.address).append(':').append(wallet.balance).append('|');
         }
@@ -873,14 +1208,38 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         walletInspector.removeAll();
 
         if(wallet == null) {
-            walletInspector.add(WlanTheme.label("No wallet selected.",12,WlanTheme.MUTED));
+            if(snapshot != null && snapshot.nodeType == Computer.NodeType.LIGHT) {
+                walletInspector.add(WlanTheme.title("SPV WALLET",18));
+                walletInspector.add(Box.createVerticalStrut(8));
+                JTextArea message = new JTextArea("LIGHT node čuva headere i vlastite transakcije, a FULL/MINER node koristi za balance, nonce i Merkle proof.");
+                message.setEditable(false);
+                message.setLineWrap(true);
+                message.setWrapStyleWord(true);
+                message.setOpaque(false);
+                message.setForeground(WlanTheme.MUTED);
+                message.setFont(WlanTheme.font(Font.PLAIN,12));
+                message.setMaximumSize(new Dimension(Integer.MAX_VALUE,64));
+                walletInspector.add(message);
+            } else {
+                walletInspector.add(WlanTheme.label("No wallet selected.",12,WlanTheme.MUTED));
+            }
         } else {
             walletInspector.add(WlanTheme.title(wallet.local ? "YOUR WALLET" : wallet.label.toUpperCase(),20));
             walletInspector.add(WlanTheme.label(wallet.local ? "LOCAL PRIVATE KEY AVAILABLE" : "REMOTE PUBLIC ACCOUNT",12,
                     wallet.local ? WlanTheme.SUCCESS : WlanTheme.PURPLE));
             walletInspector.add(Box.createVerticalStrut(20));
             walletInspector.add(WlanTheme.label("BALANCE",12,WlanTheme.MUTED));
-            walletInspector.add(WlanTheme.title(Money.format(wallet.balance) + " MATH",25));
+            String exactBalance = Money.format(wallet.balance);
+            int balanceFontSize = exactBalance.length() > 20 ? 16 : exactBalance.length() > 15 ? 19 : 25;
+            JPanel balanceRow = new JPanel(new BorderLayout(8,0));
+            balanceRow.setOpaque(false);
+            balanceRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+            balanceRow.setMaximumSize(new Dimension(Integer.MAX_VALUE,36));
+            JLabel balanceValue = WlanTheme.title(exactBalance,balanceFontSize);
+            balanceValue.setToolTipText(exactBalance + " $MATH");
+            balanceRow.add(balanceValue,BorderLayout.CENTER);
+            balanceRow.add(WlanTheme.label("$MATH",12,WlanTheme.CYAN),BorderLayout.EAST);
+            walletInspector.add(balanceRow);
             walletInspector.add(Box.createVerticalStrut(18));
             addInspectorValue(walletInspector,"ADDRESS",wallet.address);
             walletInspector.add(Box.createVerticalGlue());
@@ -945,6 +1304,13 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         executeAction("Signing transaction",() -> controller.sendTransaction(receiver,amount));
     }
 
+    private void updateSendAmountPreview() {
+        if(sendAmountValue == null || amountField == null) return;
+        String amount = amountField.getText().trim();
+        String displayAmount = amount.length() > 15 ? WlanTheme.compact(amount,6) : amount;
+        sendAmountValue.setText("SENDING " + (displayAmount.isBlank() ? "—" : displayAmount) + " $MATH");
+    }
+
     private void changeAutoMode() {
         if(updatingControls) return;
         WlanUIController.ActionResult result = controller.setAutoMode(autoToggle.isSelected());
@@ -962,8 +1328,9 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         }
 
         Window owner = SwingUtilities.getWindowAncestor(this);
-        JDialog dialog = new JDialog(owner,"MATHOSCOIN · Session login",Dialog.ModalityType.APPLICATION_MODAL);
+        JDialog dialog = new JDialog(owner,"MathosCoin · Session login",Dialog.ModalityType.APPLICATION_MODAL);
         dialog.setUndecorated(true);
+        dialog.setBackground(new Color(0,0,0,0));
 
         WlanTheme.Card surface = new WlanTheme.Card(new BorderLayout(),26);
         surface.setBorder(new EmptyBorder(22,24,22,24));
@@ -974,14 +1341,18 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         fields.setBorder(new EmptyBorder(22,0,14,0));
         fields.setLayout(new BoxLayout(fields,BoxLayout.Y_AXIS));
         JTextField publicHash = new WlanTheme.RoundedTextField();
-        JTextField privateHash = new WlanTheme.RoundedTextField();
+        JPasswordField privateHash = secretInput();
+        publicHash.setAlignmentX(Component.LEFT_ALIGNMENT);
+        publicHash.setPreferredSize(new Dimension(0,44));
+        publicHash.setMinimumSize(new Dimension(0,44));
+        publicHash.setMaximumSize(new Dimension(Integer.MAX_VALUE,44));
         publicHash.getAccessibleContext().setAccessibleName("Public login hash");
         privateHash.getAccessibleContext().setAccessibleName("Private login hash for this local wallet");
         fields.add(fieldLabel("PUBLIC LOGIN HASH"));
         fields.add(publicHash);
         fields.add(Box.createVerticalStrut(12));
         fields.add(fieldLabel("PRIVATE LOGIN HASH"));
-        fields.add(privateHash);
+        fields.add(secretInputWithEye(privateHash));
         fields.add(Box.createVerticalStrut(10));
         fields.add(WlanTheme.label("This wallet is stored locally and restored from SQLite when the node restarts.",12,WlanTheme.SUCCESS));
         surface.add(fields,BorderLayout.CENTER);
@@ -997,7 +1368,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         cancel.addActionListener(event -> dialog.dispose());
         WlanTheme.AccentButton login = new WlanTheme.AccentButton("AUTHENTICATE",true);
         login.addActionListener(event -> {
-            WlanUIController.ActionResult result = controller.login(publicHash.getText(),privateHash.getText());
+            WlanUIController.ActionResult result = controller.login(publicHash.getText(),new String(privateHash.getPassword()));
             showToast(result.message,result.success ? WlanTheme.SUCCESS : WlanTheme.DANGER);
             if(result.success) dialog.dispose();
             requestSnapshot();
@@ -1008,38 +1379,82 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         surface.add(buttons,BorderLayout.SOUTH);
 
         dialog.setContentPane(surface);
-        dialog.setSize(680,410);
+        dialog.setSize(680,360);
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
     }
 
     private void validateChain() {
-        showToast("Validating full local chain…",WlanTheme.CYAN);
-        background.execute(() -> {
-            boolean valid = controller.validateChain();
-            SwingUtilities.invokeLater(() -> {
-                showToast(valid ? "Chain valid · full replay passed" : "Chain invalid · inspect console",valid ? WlanTheme.SUCCESS : WlanTheme.DANGER);
-                requestSnapshot();
+        if(!actionRunning.compareAndSet(false,true)) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        showLoadingToast(snapshot != null && snapshot.nodeType == Computer.NodeType.LIGHT
+                ? "Validating stored headers"
+                : "Validating full local chain");
+        try {
+            background.execute(() -> {
+                try {
+                    boolean valid = controller.validateChain();
+                    SwingUtilities.invokeLater(() -> {
+                        actionRunning.set(false);
+                        showToast(valid ? "Chain valid · verification passed" : "Chain invalid · inspect console",valid ? WlanTheme.SUCCESS : WlanTheme.DANGER);
+                        requestSnapshot();
+                    });
+                } catch(Exception e) {
+                    actionRunning.set(false);
+                    SwingUtilities.invokeLater(() -> showToast("Validation failed · " + e.getMessage(),WlanTheme.DANGER));
+                }
             });
-        });
+        } catch(RejectedExecutionException exception) {
+            actionRunning.set(false);
+            showToast("Validation worker is not available",WlanTheme.DANGER);
+        }
     }
 
     private void executeAction(String progress,Callable<WlanUIController.ActionResult> action) {
-        showToast(progress + "…",WlanTheme.CYAN);
-        background.execute(() -> {
-            try {
-                WlanUIController.ActionResult result = action.call();
-                SwingUtilities.invokeLater(() -> {
-                    showToast(result.message,result.success ? WlanTheme.SUCCESS : WlanTheme.DANGER);
-                    requestSnapshot();
-                });
-            } catch(Exception e) {
-                SwingUtilities.invokeLater(() -> showToast("Action failed · " + e.getMessage(),WlanTheme.DANGER));
-            }
-        });
+        if(!actionRunning.compareAndSet(false,true)) {
+            Toolkit.getDefaultToolkit().beep();
+            return;
+        }
+        showLoadingToast(progress);
+        try {
+            background.execute(() -> {
+                try {
+                    WlanUIController.ActionResult result = action.call();
+                    SwingUtilities.invokeLater(() -> {
+                        actionRunning.set(false);
+                        showToast(result.message,result.success ? WlanTheme.SUCCESS : WlanTheme.DANGER);
+                        requestSnapshot();
+                    });
+                } catch(Exception e) {
+                    actionRunning.set(false);
+                    SwingUtilities.invokeLater(() -> showToast("Action failed · " + e.getMessage(),WlanTheme.DANGER));
+                }
+            });
+        } catch(RejectedExecutionException exception) {
+            actionRunning.set(false);
+            showToast("Action worker is not available",WlanTheme.DANGER);
+        }
+    }
+
+    private void showLoadingToast(String message) {
+        toastProgressMessage = message;
+        toastProgressFrame = 0;
+        updateLoadingToast();
+        toastProgressTimer.start();
+    }
+
+    private void updateLoadingToast() {
+        if(toastProgressMessage == null || toast == null) return;
+        String[] progress = {"●  ○  ○","○  ●  ○","○  ○  ●"};
+        toast.setText("  " + progress[toastProgressFrame++ % progress.length] + "   " + toastProgressMessage);
+        toast.setForeground(WlanTheme.CYAN);
     }
 
     private void showToast(String message,Color color) {
+        toastProgressTimer.stop();
+        toastProgressMessage = null;
         toast.setText("  " + message);
         toast.setForeground(color);
     }
@@ -1051,6 +1466,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
 
     public void shutdown() {
         refreshTimer.stop();
+        toastProgressTimer.stop();
         background.shutdownNow();
         controller.shutdown();
     }
@@ -1074,6 +1490,244 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
 
         @Override public String toString() {
             return address;
+        }
+    }
+
+    private static class VerticalScrollPanel extends JPanel implements Scrollable {
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int getScrollableUnitIncrement(Rectangle visibleRect,int orientation,int direction) { return 18; }
+        @Override public int getScrollableBlockIncrement(Rectangle visibleRect,int orientation,int direction) { return Math.max(70,visibleRect.height - 55); }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
+
+    private static class SnakeChainView extends JPanel implements Scrollable {
+        private static final int BLOCK_SIZE = 112;
+        private static final int HORIZONTAL_GAP = 28;
+        private static final int VERTICAL_GAP = 26;
+        private static final int OUTER_GAP = 24;
+
+        private final IntConsumer blockSelected;
+        private List<WlanUIController.BlockView> blocks = List.of();
+        private final ArrayList<BlockCell> cells = new ArrayList<>();
+        private int selectedHeight = -1;
+        private int hoveredHeight = -1;
+
+        private SnakeChainView(IntConsumer blockSelected) {
+            this.blockSelected = blockSelected;
+            setOpaque(false);
+            setToolTipText("");
+            getAccessibleContext().setAccessibleName("Connected blockchain map");
+            addMouseMotionListener(new MouseAdapter() {
+                @Override public void mouseMoved(MouseEvent event) {
+                    int next = heightAt(event.getPoint());
+                    if(next == hoveredHeight) return;
+                    hoveredHeight = next;
+                    setCursor(next < 0 ? Cursor.getDefaultCursor() : Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    repaint();
+                }
+            });
+            addMouseListener(new MouseAdapter() {
+                @Override public void mouseExited(MouseEvent event) {
+                    hoveredHeight = -1;
+                    setCursor(Cursor.getDefaultCursor());
+                    repaint();
+                }
+
+                @Override public void mouseClicked(MouseEvent event) {
+                    int height = heightAt(event.getPoint());
+                    if(height < 0) return;
+                    selectedHeight = height;
+                    blockSelected.accept(height);
+                    repaint();
+                }
+            });
+        }
+
+        private void setBlocks(List<WlanUIController.BlockView> blocks,int selectedHeight) {
+            this.blocks = List.copyOf(blocks);
+            this.selectedHeight = selectedHeight;
+            revalidate();
+            repaint();
+        }
+
+        private void setSelectedHeight(int selectedHeight) {
+            this.selectedHeight = selectedHeight;
+            repaint();
+        }
+
+        private int availableWidth() {
+            int width = getWidth();
+            if(getParent() instanceof JViewport) width = Math.max(width,getParent().getWidth());
+            return Math.max(330,width);
+        }
+
+        private int columnCount() {
+            return Math.max(2,(availableWidth() - OUTER_GAP * 2 + HORIZONTAL_GAP) / (BLOCK_SIZE + HORIZONTAL_GAP));
+        }
+
+        private int rowCount() {
+            return Math.max(1,(blocks.size() + columnCount() - 1) / columnCount());
+        }
+
+        private void layoutCells() {
+            cells.clear();
+            int columns = columnCount();
+            int rows = rowCount();
+            int usedWidth = columns * BLOCK_SIZE + (columns - 1) * HORIZONTAL_GAP;
+            int startX = Math.max(OUTER_GAP,(availableWidth() - usedWidth) / 2);
+
+            for(int i = 0; i < blocks.size(); i++) {
+                int rowFromBottom = i / columns;
+                int position = i % columns;
+                int column = rowFromBottom % 2 == 0 ? position : columns - 1 - position;
+                int rowFromTop = rows - 1 - rowFromBottom;
+                int x = startX + column * (BLOCK_SIZE + HORIZONTAL_GAP);
+                int y = OUTER_GAP + rowFromTop * (BLOCK_SIZE + VERTICAL_GAP);
+                cells.add(new BlockCell(blocks.get(i),new Rectangle(x,y,BLOCK_SIZE,BLOCK_SIZE)));
+            }
+        }
+
+        private int heightAt(Point point) {
+            layoutCells();
+            for(BlockCell cell : cells) if(cell.bounds.contains(point)) return cell.block.height;
+            return -1;
+        }
+
+        private Rectangle boundsForHeight(int height) {
+            layoutCells();
+            for(BlockCell cell : cells) if(cell.block.height == height) return cell.bounds;
+            return null;
+        }
+
+        private void scrollToBlock(int height) {
+            SwingUtilities.invokeLater(() -> {
+                Rectangle bounds = boundsForHeight(height);
+                if(bounds != null) scrollRectToVisible(new Rectangle(bounds.x - 16,bounds.y - 16,bounds.width + 32,bounds.height + 32));
+            });
+        }
+
+        @Override public String getToolTipText(MouseEvent event) {
+            int height = heightAt(event.getPoint());
+            if(height < 0) return null;
+            for(BlockCell cell : cells) {
+                if(cell.block.height == height) return "Block #" + height + " · "
+                        + (cell.block.transactionCount < 0 ? "verified header" : cell.block.transactionCount + " transactions")
+                        + " · " + cell.block.hash;
+            }
+            return null;
+        }
+
+        @Override public Dimension getPreferredSize() {
+            int height = OUTER_GAP * 2 + rowCount() * BLOCK_SIZE + (rowCount() - 1) * VERTICAL_GAP;
+            return new Dimension(availableWidth(),Math.max(280,height));
+        }
+
+        @Override protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            layoutCells();
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            for(int i = 1; i < cells.size(); i++) {
+                Rectangle first = cells.get(i - 1).bounds;
+                Rectangle second = cells.get(i).bounds;
+                int firstX = first.x + first.width / 2;
+                int firstY = first.y + first.height / 2;
+                int secondX = second.x + second.width / 2;
+                int secondY = second.y + second.height / 2;
+                g.setColor(WlanTheme.alpha(WlanTheme.PRIMARY_LIGHT,30));
+                g.setStroke(new BasicStroke(7f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+                g.drawLine(firstX,firstY,secondX,secondY);
+                g.setColor(WlanTheme.alpha(WlanTheme.CYAN,155));
+                g.setStroke(new BasicStroke(2f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+                g.drawLine(firstX,firstY,secondX,secondY);
+            }
+
+            for(BlockCell cell : cells) paintBlock(g,cell);
+            g.dispose();
+        }
+
+        private void paintBlock(Graphics2D g,BlockCell cell) {
+            Rectangle bounds = cell.bounds;
+            boolean selected = cell.block.height == selectedHeight;
+            boolean hovered = cell.block.height == hoveredHeight;
+            Color border = cell.block.height == 0 ? WlanTheme.PURPLE
+                    : selected ? WlanTheme.CYAN : hovered ? WlanTheme.PRIMARY_LIGHT : WlanTheme.BORDER;
+
+            if(selected || hovered) {
+                g.setColor(WlanTheme.alpha(border,38));
+                g.fillRoundRect(bounds.x - 5,bounds.y - 5,bounds.width + 10,bounds.height + 10,23,23);
+            }
+            g.setPaint(selected
+                    ? new GradientPaint(bounds.x,bounds.y,WlanTheme.alpha(WlanTheme.PRIMARY,245),bounds.x + bounds.width,bounds.y + bounds.height,WlanTheme.alpha(WlanTheme.PURPLE,220))
+                    : new GradientPaint(bounds.x,bounds.y,WlanTheme.alpha(WlanTheme.SURFACE_HIGH,248),bounds.x + bounds.width,bounds.y + bounds.height,WlanTheme.alpha(WlanTheme.SURFACE,245)));
+            g.fillRoundRect(bounds.x,bounds.y,bounds.width,bounds.height,19,19);
+            g.setColor(border);
+            g.setStroke(new BasicStroke(selected ? 2f : 1.15f));
+            g.drawRoundRect(bounds.x,bounds.y,bounds.width,bounds.height,19,19);
+
+            int x = bounds.x + 12;
+            int y = bounds.y + 24;
+            g.setFont(WlanTheme.font(Font.BOLD,15));
+            g.setColor(WlanTheme.TEXT);
+            g.drawString("#" + cell.block.height,x,y);
+            g.setFont(WlanTheme.font(Font.BOLD,11));
+            g.setColor(cell.block.height == 0 ? WlanTheme.PURPLE : WlanTheme.SUCCESS);
+            String state = cell.block.height == 0 ? "GENESIS" : "VERIFIED";
+            g.drawString(state,x,y + 20);
+
+            g.setFont(new Font(Font.MONOSPACED,Font.PLAIN,11));
+            g.setColor(WlanTheme.TEXT_SOFT);
+            g.drawString(WlanTheme.compact(cell.block.hash,5),x,y + 42);
+            g.setFont(WlanTheme.font(Font.PLAIN,11));
+            g.setColor(WlanTheme.MUTED);
+            g.drawString(cell.block.transactionCount < 0 ? "HEADER" : cell.block.transactionCount + " TX",x,y + 63);
+            String difficulty = "D" + cell.block.difficulty;
+            g.drawString(difficulty,bounds.x + bounds.width - 12 - g.getFontMetrics().stringWidth(difficulty),y + 63);
+            g.setColor(WlanTheme.alpha(WlanTheme.PRIMARY_LIGHT,120));
+            g.fillRoundRect(x,bounds.y + bounds.height - 12,bounds.width - 24,3,3,3);
+        }
+
+        @Override public Dimension getPreferredScrollableViewportSize() { return new Dimension(650,470); }
+        @Override public int getScrollableUnitIncrement(Rectangle visibleRect,int orientation,int direction) { return 24; }
+        @Override public int getScrollableBlockIncrement(Rectangle visibleRect,int orientation,int direction) { return Math.max(100,visibleRect.height - 90); }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return getParent() != null && getPreferredSize().height <= getParent().getHeight(); }
+
+        private static class BlockCell {
+            private final WlanUIController.BlockView block;
+            private final Rectangle bounds;
+
+            private BlockCell(WlanUIController.BlockView block,Rectangle bounds) {
+                this.block = block;
+                this.bounds = bounds;
+            }
+        }
+    }
+
+    private static class BlockTransactionRow extends WlanTheme.Card {
+        private BlockTransactionRow(WlanUIController.TransactionView transaction) {
+            super(new BorderLayout(8,0),16);
+            setBorder(new EmptyBorder(10,11,10,11));
+            setAlignmentX(Component.LEFT_ALIGNMENT);
+            setMaximumSize(new Dimension(Integer.MAX_VALUE,105));
+            fill(WlanTheme.alpha(WlanTheme.SURFACE_HIGH,175));
+            stroke(WlanTheme.alpha("SYSTEM REWARD".equals(transaction.type) ? WlanTheme.PURPLE : WlanTheme.PRIMARY_LIGHT,75));
+
+            JPanel text = new JPanel();
+            text.setOpaque(false);
+            text.setLayout(new BoxLayout(text,BoxLayout.Y_AXIS));
+            JLabel title = WlanTheme.title(transaction.type + "  ·  " + Money.format(transaction.amount) + " $MATH",12);
+            title.setAlignmentX(Component.LEFT_ALIGNMENT);
+            text.add(title);
+            text.add(Box.createVerticalStrut(4));
+            text.add(WlanTheme.label("FROM  " + ("SYSTEM REWARD".equals(transaction.type) ? "SYSTEM" : WlanTheme.compact(transaction.sender,9)),11,WlanTheme.MUTED));
+            text.add(WlanTheme.label("TO       " + WlanTheme.compact(transaction.receiver,9),11,WlanTheme.TEXT_SOFT));
+            text.add(Box.createVerticalStrut(3));
+            text.add(WlanTheme.label("TX  " + WlanTheme.compact(transaction.transactionId,10) + "  ·  NONCE " + transaction.nonce,11,WlanTheme.MUTED));
+            add(text,BorderLayout.CENTER);
         }
     }
 
@@ -1292,6 +1946,10 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         @Override protected void paintComponent(Graphics graphics) {
             Graphics2D g = (Graphics2D) graphics.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+            if(MathosCoinBrand.paintLogo(g,0,0,getWidth(),getHeight())) {
+                g.dispose();
+                return;
+            }
             g.setColor(WlanTheme.alpha(WlanTheme.PRIMARY,72));
             g.fillOval(1,1,52,52);
             g.setStroke(new BasicStroke(2.4f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
@@ -1444,7 +2102,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
                 g.setColor(WlanTheme.TEXT_SOFT);
                 g.drawString(WlanTheme.compact(block.hash,6),x + 12,y + 44);
                 g.setColor(WlanTheme.MUTED);
-                g.drawString(block.transactionCount + " TX  ·  D" + block.difficulty,x + 12,y + 64);
+                g.drawString((block.transactionCount < 0 ? "HEADER" : block.transactionCount + " TX") + "  ·  D" + block.difficulty,x + 12,y + 64);
             }
             g.dispose();
         }
@@ -1484,8 +2142,9 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             int cx = 70;
             int cy = getHeight() / 2;
             boolean miner = snapshot != null && snapshot.nodeType == Computer.NodeType.MINER;
+            boolean light = snapshot != null && snapshot.nodeType == Computer.NodeType.LIGHT;
             boolean active = miner && snapshot.mining;
-            Color color = !miner ? WlanTheme.MUTED : active ? WlanTheme.CYAN : WlanTheme.PURPLE;
+            Color color = light ? WlanTheme.CYAN : !miner ? WlanTheme.MUTED : active ? WlanTheme.CYAN : WlanTheme.PURPLE;
 
             for(int ring = 3; ring >= 1; ring--) {
                 double wave = (phase * 25 + ring * 13) % 45;
@@ -1499,15 +2158,16 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             g.fillOval(cx - 25,cy - 25,50,50);
             g.setFont(WlanTheme.font(Font.BOLD,15));
             g.setColor(WlanTheme.TEXT);
-            g.drawString(miner ? "M" : "—",cx - g.getFontMetrics().stringWidth(miner ? "M" : "—") / 2,cy + 5);
+            String symbol = miner ? "M" : light ? "L" : "—";
+            g.drawString(symbol,cx - g.getFontMetrics().stringWidth(symbol) / 2,cy + 5);
 
             int tx = 128;
             g.setFont(WlanTheme.font(Font.BOLD,13));
             g.setColor(WlanTheme.TEXT);
-            g.drawString(!miner ? "MINING DISABLED" : active ? "HASHING NOW" : "MINER READY",tx,cy - 16);
+            g.drawString(light ? "SPV WALLET" : !miner ? "MINING DISABLED" : active ? "HASHING NOW" : "MINER READY",tx,cy - 16);
             g.setFont(WlanTheme.font(Font.PLAIN,12));
             g.setColor(WlanTheme.MUTED);
-            g.drawString(snapshot == null ? "Starting…" : snapshot.localBlocksMined + " blocks won locally",tx,cy + 4);
+            g.drawString(snapshot == null ? "Starting…" : light ? "Signs + verifies own transactions" : snapshot.localBlocksMined + " blocks won locally",tx,cy + 4);
             g.drawString(snapshot == null ? "" : "Uptime " + duration(snapshot.uptime),tx,cy + 22);
             g.dispose();
         }

@@ -8,7 +8,7 @@ public interface Ipconfig_ex {
     String IP_OF_TEST_PC = "OTHER_NODE_IP";
 
     int PORT = 5000;
-
+    int DISCOVERY_PORT = 4999;
     boolean SERVER_MODE = true;
 
     String NODE_ID = "YOUR_UNIQUE_NODE_ID";

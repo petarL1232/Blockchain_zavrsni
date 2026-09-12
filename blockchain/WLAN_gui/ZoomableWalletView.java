@@ -68,7 +68,7 @@ public class ZoomableWalletView extends JPanel {
                 if(hovered == null) {
                     setToolTipText("Kotačićem zumiraj · povlačenjem pomiči mapu");
                 } else {
-                    setToolTipText(hovered.wallet.label + " · " + Money.format(hovered.wallet.balance) + " MATH · " + hovered.wallet.address);
+                    setToolTipText(hovered.wallet.label + " · " + Money.format(hovered.wallet.balance) + " $MATH · " + hovered.wallet.address);
                 }
                 repaint();
             }
@@ -373,7 +373,7 @@ public class ZoomableWalletView extends JPanel {
         g.drawString(label,(float) (bubble.x - labelMetrics.stringWidth(label) / 2.0),(float) (bubble.y - 3));
 
         if(radius > 39.0) {
-            String balance = Money.format(bubble.wallet.balance) + " MATH";
+            String balance = Money.format(bubble.wallet.balance) + " $MATH";
             g.setFont(WlanTheme.font(Font.PLAIN,Math.max(8.5f,labelSize - 3f)));
             FontMetrics balanceMetrics = g.getFontMetrics();
             g.setColor(WlanTheme.TEXT_SOFT);

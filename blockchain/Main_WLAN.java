@@ -73,7 +73,7 @@ public class Main_WLAN {
         Wallet myWallet = node.registerWallet(Money.coins(100));
 
         System.out.println("Moj wallet: " + myWallet.getAddress());
-        System.out.println("Balance: " + Money.format(myWallet.getBalance()));
+        System.out.println("Balance: " + Money.format(myWallet.getBalance()) + " $MATH");
 
         if (nodeType == Computer.NodeType.MINER) {
             node.startMining(myWallet.getAddress());
@@ -100,7 +100,7 @@ public class Main_WLAN {
                     String receiverAddress = commandParts[1];
                     long amount = Money.fromCoins(commandParts[2]);
 
-                    Transactions transaction = blockchain.createTransaction(myWallet,
+                    Transactions transaction = node.createTransaction(myWallet,
                             receiverAddress,
                             amount);
 
@@ -123,13 +123,22 @@ public class Main_WLAN {
 
             } else if ("balance".equalsIgnoreCase(command)) {
 
+                long balance = nodeType == Computer.NodeType.LIGHT
+                        ? node.getLightSpendableBalance(myWallet.getAddress())
+                        : myWallet.getBalance();
+
                 System.out.println(
                         "Balance: "
-                                + Money.format(myWallet.getBalance()));
+                                + Money.format(balance)
+                                + " $MATH");
 
             } else if ("chain".equalsIgnoreCase(command)) {
 
-                blockchain.printBlockchain();
+                if (nodeType == Computer.NodeType.LIGHT) {
+                    node.getLightBlockchain().printHeaders();
+                } else {
+                    blockchain.printBlockchain();
+                }
 
             } else if ("quit".equalsIgnoreCase(command)) {
 

@@ -13,7 +13,8 @@ public class WlanGUI_Main {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             WlanTheme.install();
-            JFrame frame = new JFrame("MATHOSCOIN · WLAN Node");
+            JFrame frame = new JFrame("MathosCoin · WLAN Node");
+            MathosCoinBrand.applyWindowIcon(frame);
             AtomicReference<WlanDashboard> dashboard = new AtomicReference<>();
 
             frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -47,7 +48,7 @@ public class WlanGUI_Main {
         private final ButtonGroup typeGroup = new ButtonGroup();
         private final NodeTypeButton fullButton = new NodeTypeButton("FULL","Čuva cijeli chain",Computer.NodeType.FULL);
         private final NodeTypeButton minerButton = new NodeTypeButton("MINER","Kopa nove blokove",Computer.NodeType.MINER);
-        private final NodeTypeButton lightButton = new NodeTypeButton("LIGHT","Provjerava headere",Computer.NodeType.LIGHT);
+        private final NodeTypeButton lightButton = new NodeTypeButton("LIGHT","SPV wallet + Merkle proof",Computer.NodeType.LIGHT);
 
         private NodeLaunchPanel(JFrame frame,AtomicReference<WlanDashboard> dashboard) {
             super(new BorderLayout());
@@ -76,12 +77,22 @@ public class WlanGUI_Main {
             copy.setOpaque(false);
             copy.setLayout(new BoxLayout(copy,BoxLayout.Y_AXIS));
 
-            JLabel network = WlanTheme.label("MATHOSCOIN  /  WLAN MREŽA",13,WlanTheme.TEXT_SOFT);
+            JPanel brand = new JPanel(new BorderLayout(15,0));
+            brand.setOpaque(false);
+            brand.setAlignmentX(Component.LEFT_ALIGNMENT);
+            brand.setMaximumSize(new Dimension(Integer.MAX_VALUE,60));
+            brand.add(MathosCoinBrand.logo(60),BorderLayout.WEST);
+            JPanel brandText = new JPanel();
+            brandText.setOpaque(false);
+            brandText.setLayout(new BoxLayout(brandText,BoxLayout.Y_AXIS));
+            brandText.add(WlanTheme.title("MathosCoin",20));
+            brandText.add(Box.createVerticalStrut(3));
+            JLabel network = WlanTheme.label("$MATH  /  WLAN MREŽA",13,WlanTheme.TEXT_SOFT);
             network.setFont(WlanTheme.font(Font.BOLD,13));
-            network.setAlignmentX(Component.LEFT_ALIGNMENT);
-            network.setMaximumSize(new Dimension(Integer.MAX_VALUE,network.getPreferredSize().height));
-            copy.add(network);
-            copy.add(Box.createVerticalStrut(28));
+            brandText.add(network);
+            brand.add(brandText,BorderLayout.CENTER);
+            copy.add(brand);
+            copy.add(Box.createVerticalStrut(24));
 
             JLabel titleFirstLine = WlanTheme.title("Pokreni svoj",38);
             JLabel titleSecondLine = WlanTheme.title("blockchain node.",38);
@@ -93,7 +104,7 @@ public class WlanGUI_Main {
             copy.add(titleSecondLine);
             copy.add(Box.createVerticalStrut(18));
 
-            JTextArea detail = new JTextArea("Ovaj uređaj postaje ravnopravan čvor MATHOSCOIN mreže: sluša peerove, pronalazi ih na lokalnoj mreži i sinkronizira zajednički blockchain.");
+            JTextArea detail = new JTextArea("Ovaj uređaj postaje ravnopravan čvor MathosCoin mreže: sluša peerove, pronalazi ih na lokalnoj mreži i sinkronizira zajednički blockchain.");
             detail.setEditable(false);
             detail.setLineWrap(true);
             detail.setWrapStyleWord(true);
@@ -116,8 +127,8 @@ public class WlanGUI_Main {
 
             JPanel footer = new JPanel(new BorderLayout());
             footer.setOpaque(false);
-            footer.add(WlanTheme.label("MATHOSCOIN",12,WlanTheme.TEXT_SOFT),BorderLayout.WEST);
-            JLabel symbol = WlanTheme.title("MATH",18);
+            footer.add(WlanTheme.label("MathosCoin",12,WlanTheme.TEXT_SOFT),BorderLayout.WEST);
+            JLabel symbol = WlanTheme.title("$MATH",18);
             footer.add(symbol,BorderLayout.EAST);
             card.add(footer,BorderLayout.SOUTH);
             return card;
@@ -154,7 +165,7 @@ public class WlanGUI_Main {
             form.setLayout(new BoxLayout(form,BoxLayout.Y_AXIS));
             form.add(WlanTheme.label("NOVA LOKALNA SESIJA",12,WlanTheme.CYAN));
             form.add(Box.createVerticalStrut(6));
-            form.add(WlanTheme.title("Pokreni WLAN node",30));
+            form.add(WlanTheme.title("Pokreni WLAN node",27));
             form.add(Box.createVerticalStrut(7));
             form.add(WlanTheme.label("Odaberi identitet, ulogu i port ovoga uređaja.",14,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(23));
@@ -375,7 +386,7 @@ public class WlanGUI_Main {
 
     private static String defaultAlias() {
         String computer = System.getenv("COMPUTERNAME");
-        if(computer == null || computer.isBlank()) return "My MATH Node";
+        if(computer == null || computer.isBlank()) return "My MathosCoin Node";
         return computer.substring(0,1).toUpperCase(Locale.ROOT) + computer.substring(1).toLowerCase(Locale.ROOT);
     }
 

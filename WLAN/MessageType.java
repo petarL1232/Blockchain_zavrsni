@@ -9,10 +9,14 @@ public enum MessageType {
     BLOCK, // šalje novi blok peeru - "Evo novog bloka koji sam dobio/izmajnao" DONE
     GET_CHAIN, // "pošalji mi svoj blockchain cijeli" - ovo moze biti veliko u terabajtima/gigabajtima dok se ne update protokol to neću raditi za sada. DONE
     CHAIN_RESPONSE, // odgovor na getchain - šalje nodeu blockchain DONE
+    GET_HEADERS, // light node traži samo block headere
+    HEADERS, // odgovor ili obavijest light nodeu s headerima
     GET_PEERS, // pitamo koje još nodeove poznaješ. u idealnom svijetu će ovo biti povezani graf pa će se na ovaj način lagano moći naš node sprijateljiti sa svim nodeovima na mreži
     PEERS, // odgovor na get peers - vraća nodeove koje još poznaje
     GET_MERKLE_PROOF, // dokaži mi da je ova transakcija u određenom bloku 
     MERKLE_PROOF, // odgovor na get merkle proof - vraca hasheove potrebne za merkle stablo
+    GET_ACCOUNT_STATE, // light node traži samo balance i idući nonce svog walleta
+    ACCOUNT_STATE, // full/miner vraća trenutno stanje traženog walleta
     WALLET, // javni novčanik se šalje (trebaju svi poslati da bih se napravile transakcije) DONE
     REJECT, // poruka je primljena, ali odbijena DONE
     DISCOVER, // poruka da se otkriju drugi čvorovi bez da se ručno unosi ip (UDP broadcast) DONE

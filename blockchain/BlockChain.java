@@ -959,7 +959,7 @@ public class BlockChain {
                                 "Transakcija odbijena: "
                                         + tx.getSender() + " -> "
                                         + tx.getReceiver() + " ("
-                                        + Money.format(tx.getAmount()) + ")");
+                                        + Money.format(tx.getAmount()) + " $MATH)");
                     }
                 }
             }
@@ -1029,19 +1029,19 @@ public class BlockChain {
                                 "Light nodovi prihvatili transakciju: "
                                         + tx.getSender() + " -> "
                                         + tx.getReceiver() + " ("
-                                        + Money.format(tx.getAmount()) + ")");
+                                        + Money.format(tx.getAmount()) + " $MATH)");
                     } else {
                         System.out.println(
                                 "Light nodovi odbacili transakciju: "
                                         + tx.getSender() + " -> "
                                         + tx.getReceiver() + " ("
-                                        + Money.format(tx.getAmount()) + ")");
+                                        + Money.format(tx.getAmount()) + " $MATH)");
                     }
 
                     indexTx++;
                 }
             } else {
-                System.out.println("todo da lightnodeovi rade nekako");
+                System.out.println("Blok je spreman za WLAN broadcast prema ostalim nodeovima.");
             }
 
             return newBlock;
@@ -1182,6 +1182,28 @@ public class BlockChain {
         }
     }
 
+    public synchronized TransactionAccountState getTransactionAccountState(String address) {
+
+        if (address == null || !publicWalletRegistry.containsKey(address)) {
+            return null;
+        }
+
+        Map<String, Long> temporaryBalances = createBalanceSnapshot();
+        Map<String, Long> temporaryNonces = createNonceSnapshot();
+
+        synchronized (transactionPoolLock) {
+            for (Transactions transaction : transactionPool) {
+                if (!applyTransactionToTemporaryState(transaction,temporaryBalances,temporaryNonces)) {
+                    throw new IllegalStateException("Mempool nije valjan za account state.");
+                }
+            }
+        }
+
+        return new TransactionAccountState(
+                temporaryBalances.get(address),
+                temporaryNonces.get(address));
+    }
+
     public synchronized boolean registerStoredLocalWallet(Wallet wallet,long initialBalance) {
 
         if (wallet == null) {
@@ -1297,7 +1319,8 @@ public class BlockChain {
         for (String address : adresa_walleta) {
             System.out.println(
                     "Adresa: " + address + " | Balance: "
-                            + Money.format(getPublicWalletRegistry().get(address).getBalance()));
+                            + Money.format(getPublicWalletRegistry().get(address).getBalance())
+                            + " $MATH");
         }
     }
 
@@ -1307,6 +1330,7 @@ public class BlockChain {
             System.out
                     .println("Adresa: " + address + " | Balance: "
                             + Money.format(getPublicWalletRegistry().get(address).getBalance())
+                            + " $MATH"
                             + " | Public key hash: "
                             + Cryptography.applySHA256(getPublicWalletRegistry().get(address).getPublicKey().toString())
                             + " | Private key hash: ");
@@ -1314,6 +1338,17 @@ public class BlockChain {
             // Cryptography.applySHA256(getPublicWalletRegistry().get(address).getPrivateKey().toString()));
             // ova sada linija nema više smisla kako private ključevi nisu javni demo toga
             // je gotov
+        }
+    }
+
+    public static class TransactionAccountState {
+
+        public final long spendableBalance;
+        public final long nextNonce;
+
+        public TransactionAccountState(long spendableBalance,long nextNonce) {
+            this.spendableBalance = spendableBalance;
+            this.nextNonce = nextNonce;
         }
     }
 }

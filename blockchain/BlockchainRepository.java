@@ -124,6 +124,16 @@ public class BlockchainRepository {
         insertPendingTransaction(transaction);
     }
 
+    public synchronized void removePendingTransaction(String transactionId) throws SQLException {
+
+        String sql = "DELETE FROM transactions WHERE tx_hash = ? AND block_id IS NULL";
+
+        try(PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1,transactionId);
+            statement.executeUpdate();
+        }
+    }
+
     private void insertPendingTransaction(Transactions transaction) throws SQLException {
 
         String sql = """
@@ -536,6 +546,131 @@ public class BlockchainRepository {
         }
 
         return peers;
+    }
+
+    public synchronized void saveLightHeader(
+            BlockChain_LightNodes.BlockHeader header) throws SQLException {
+
+        String sql = """
+                INSERT INTO light_headers(
+                    block_height,
+                    previous_hash,
+                    block_hash,
+                    merkle_root,
+                    created_on,
+                    nonce,
+                    difficulty
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(block_height) DO UPDATE SET
+                    previous_hash = excluded.previous_hash,
+                    block_hash = excluded.block_hash,
+                    merkle_root = excluded.merkle_root,
+                    created_on = excluded.created_on,
+                    nonce = excluded.nonce,
+                    difficulty = excluded.difficulty
+                """;
+
+        try(PreparedStatement statement = connection.prepareStatement(sql)) {
+            fillLightHeaderStatement(statement,header);
+            statement.executeUpdate();
+        }
+    }
+
+    public synchronized void replaceLightHeaders(
+            List<BlockChain_LightNodes.BlockHeader> headers) throws SQLException {
+
+        boolean oldAutoCommit = connection.getAutoCommit();
+
+        try {
+            connection.setAutoCommit(false);
+
+            try(Statement statement = connection.createStatement()) {
+                statement.executeUpdate("DELETE FROM light_headers");
+            }
+
+            for(BlockChain_LightNodes.BlockHeader header : headers) {
+                insertLightHeader(header);
+            }
+
+            connection.commit();
+
+        } catch(SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(oldAutoCommit);
+        }
+    }
+
+    private void insertLightHeader(
+            BlockChain_LightNodes.BlockHeader header) throws SQLException {
+
+        String sql = """
+                INSERT INTO light_headers(
+                    block_height,
+                    previous_hash,
+                    block_hash,
+                    merkle_root,
+                    created_on,
+                    nonce,
+                    difficulty
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try(PreparedStatement statement = connection.prepareStatement(sql)) {
+            fillLightHeaderStatement(statement,header);
+            statement.executeUpdate();
+        }
+    }
+
+    private void fillLightHeaderStatement(
+            PreparedStatement statement,
+            BlockChain_LightNodes.BlockHeader header) throws SQLException {
+
+        statement.setInt(1,header.height);
+        statement.setString(2,header.previousHash);
+        statement.setString(3,header.blockHash);
+        statement.setString(4,header.merkleRoot);
+        statement.setLong(5,header.timestamp);
+        statement.setLong(6,header.nonce);
+        statement.setInt(7,header.difficulty);
+    }
+
+    public synchronized ArrayList<BlockChain_LightNodes.BlockHeader> loadLightHeaders() throws SQLException {
+
+        ArrayList<BlockChain_LightNodes.BlockHeader> headers = new ArrayList<>();
+
+        String sql = """
+                SELECT
+                    block_height,
+                    previous_hash,
+                    block_hash,
+                    merkle_root,
+                    created_on,
+                    nonce,
+                    difficulty
+                FROM light_headers
+                ORDER BY block_height
+                """;
+
+        try(PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet result = statement.executeQuery()) {
+
+            while(result.next()) {
+                headers.add(new BlockChain_LightNodes.BlockHeader(
+                        result.getInt("block_height"),
+                        result.getString("previous_hash"),
+                        result.getString("merkle_root"),
+                        result.getLong("created_on"),
+                        result.getString("block_hash"),
+                        result.getLong("nonce"),
+                        result.getInt("difficulty")));
+            }
+        }
+
+        return headers;
     }
 
     private String getMinerAddress(Block block) {
