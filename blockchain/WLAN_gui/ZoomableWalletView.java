@@ -66,7 +66,7 @@ public class ZoomableWalletView extends JPanel {
             public void mouseMoved(MouseEvent event) {
                 hovered = bubbleAt(event.getPoint());
                 if(hovered == null) {
-                    setToolTipText("Kotačićem zumiraj · povlačenjem pomiči mapu");
+                    setToolTipText("Use the mouse wheel to zoom · drag to move the map");
                 } else {
                     setToolTipText(hovered.wallet.label + " · " + Money.format(hovered.wallet.balance) + " $MATH · " + hovered.wallet.address);
                 }

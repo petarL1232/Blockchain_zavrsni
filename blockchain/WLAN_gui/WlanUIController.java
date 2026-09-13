@@ -74,7 +74,7 @@ public class WlanUIController implements AutoCloseable {
     public static WlanUIController start(Settings settings) throws Exception {
 
         if (settings == null) {
-            throw new IllegalArgumentException("Node postavke nedostaju.");
+            throw new IllegalArgumentException("Node settings are missing.");
         }
 
         settings.validate();
@@ -108,14 +108,14 @@ public class WlanUIController implements AutoCloseable {
 
                 if (localWallet != null) {
                     throw new IllegalStateException(
-                            "Baza sadrži više lokalnih walleta.");
+                            "The database contains multiple local wallets.");
                 }
 
                 if (storedWallet.privateKey == null
                         || storedWallet.privateKey.isBlank()) {
 
                     throw new IllegalStateException(
-                            "Lokalni wallet nema private key.");
+                            "The local wallet has no private key.");
                 }
 
                 Wallet restoredWallet = new Wallet(
@@ -124,7 +124,7 @@ public class WlanUIController implements AutoCloseable {
 
                 if (!restoredWallet.getAddress().equals(storedWallet.address)) {
                     throw new IllegalStateException(
-                            "Adresa lokalnog walleta ne odgovara ključevima.");
+                            "The local wallet address does not match its keys.");
                 }
 
                 if (!blockchain.registerStoredLocalWallet(
@@ -132,7 +132,7 @@ public class WlanUIController implements AutoCloseable {
                         storedWallet.initialBalance)) {
 
                     throw new IllegalStateException(
-                            "Lokalni wallet nije moguće učitati.");
+                            "The local wallet could not be loaded.");
                 }
 
                 localWallet = restoredWallet;
@@ -154,7 +154,7 @@ public class WlanUIController implements AutoCloseable {
 
                 if (!registered) {
                     throw new IllegalStateException(
-                            "Network wallet nije moguće učitati: "
+                            "The network wallet could not be loaded: "
                                     + storedWallet.address);
                 }
             }
@@ -166,7 +166,7 @@ public class WlanUIController implements AutoCloseable {
 
                 if (!storedWallets.isEmpty()) {
                     throw new IllegalStateException(
-                            "Baza nema označen lokalni wallet.");
+                            "The database has no wallet marked as local.");
                 }
 
                 localWallet = blockchain.registerWallet();
@@ -198,7 +198,7 @@ public class WlanUIController implements AutoCloseable {
                     storedMempool)) {
 
                 throw new IllegalStateException(
-                        "State iz baze nije moguće učitati.");
+                        "The blockchain state could not be loaded from the database.");
             }
 
             /*
@@ -263,22 +263,22 @@ public class WlanUIController implements AutoCloseable {
 
             controller.addActivity(
                     restoredFromDatabase
-                            ? "WLAN node je vraćen iz baze"
-                            : "Novi WLAN node je spremljen",
+                            ? "WLAN node restored from database"
+                            : "New WLAN node saved",
                     settings.nodeId
-                            + " sluša na portu "
+                            + " is listening on port "
                             + settings.listenPort
-                            + ". Lokalni wallet: "
+                            + ". Local wallet: "
                             + WlanTheme.compact(localWallet.getAddress(), 7),
                     "success");
 
             controller.addActivity(
-                    "Lokalni wallet je spreman",
+                    "Local wallet is ready",
                     settings.nodeType == Computer.NodeType.LIGHT
-                            ? "LIGHT wallet je spreman za potpisivanje. FULL/MINER daje nonce i balance, a Merkle proof potvrđuje transakcije."
+                            ? "The LIGHT wallet is ready to sign. A FULL/MINER node provides its nonce and balance, while Merkle proofs verify transactions."
                             : restoredFromDatabase
-                            ? "Wallet, blockchain i mempool učitani su iz lokalne SQLite baze."
-                            : settings.alias + " ima početnih 100 $MATH. Login otključava potpisivanje transakcija.",
+                            ? "The wallet, blockchain and mempool were loaded from the local SQLite database."
+                            : settings.alias + " starts with 100 $MATH. Login unlocks transaction signing.",
                     "info");
 
             return controller;
@@ -310,6 +310,8 @@ public class WlanUIController implements AutoCloseable {
         BigInteger cumulativeWork;
         boolean mining;
         boolean lightNode = settings.nodeType == Computer.NodeType.LIGHT;
+        boolean lightAccountStateSynchronized = !lightNode
+                || networkNode.isLightAccountStateSynchronized();
         List<NetworkNode.LightTransaction> lightTransactions = lightNode
                 ? networkNode.getLightTransactionsSnapshot()
                 : List.of();
@@ -325,7 +327,9 @@ public class WlanUIController implements AutoCloseable {
             for (PublicWallet wallet : blockchain.getPublicWalletRegistry().values()) {
                 boolean local = wallet.getAddress().equals(localWallet.getAddress());
                 long balance = lightNode && local
+                        ? lightAccountStateSynchronized
                         ? networkNode.getLightSpendableBalance(localWallet.getAddress())
+                        : 0L
                         : wallet.getBalance();
                 if (!lightNode) {
                     try {
@@ -335,12 +339,16 @@ public class WlanUIController implements AutoCloseable {
                     }
                 }
                 walletViews.add(new WalletView(wallet.getAddress(),
-                        local ? settings.alias : "Wallet " + WlanTheme.compact(wallet.getAddress(), 4), balance,
+                        local
+                                ? settings.alias + (lightNode && !lightAccountStateSynchronized ? " · SYNCING" : "")
+                                : "Wallet " + WlanTheme.compact(wallet.getAddress(), 4), balance,
                         local));
             }
 
             localBalance = lightNode
+                    ? lightAccountStateSynchronized
                     ? networkNode.getLightSpendableBalance(localWallet.getAddress())
+                    : 0L
                     : localWallet.getBalance();
             if (lightNode && !lightHeaders.isEmpty()) {
                 difficulty = lightHeaders.get(lightHeaders.size() - 1).difficulty;
@@ -417,7 +425,7 @@ public class WlanUIController implements AutoCloseable {
 
         return new Snapshot(
                 settings.nodeId, settings.alias, settings.nodeType, settings.listenPort, localWallet.getAddress(),
-                localBalance, loggedIn, autoModeEnabled, automaticTransactions.get(),
+                localBalance, lightAccountStateSynchronized, loggedIn, autoModeEnabled, automaticTransactions.get(),
                 rejectedAutomaticTransactions.get(),
                 peerCount, height, tipHash, difficulty, cumulativeWork, pending.size(),
                 mining, localBlocksMined, totalSupply, System.currentTimeMillis() - startedAt,
@@ -442,15 +450,15 @@ public class WlanUIController implements AutoCloseable {
         synchronized (observationLock) {
             if (observedPeerCount >= 0 && peerCount != observedPeerCount) {
                 if (peerCount > observedPeerCount) {
-                    addActivity("Mesh se proširio", peerCount + " direktnih peer konekcija je aktivno.", "success");
+                    addActivity("Mesh expanded", peerCount + " direct peer connections are active.", "success");
                 } else {
-                    addActivity("Peer status se promijenio", peerCount + " direktnih peer konekcija je ostalo aktivno.",
+                    addActivity("Peer status changed", peerCount + " direct peer connections remain active.",
                             "warning");
                 }
             }
 
             if (observedHeight >= 0 && height > observedHeight) {
-                addActivity("Novi block je potvrđen", "Lokalni chain je sada na heightu " + height + ".", "success");
+                addActivity("New block confirmed", "The local chain is now at height " + height + ".", "success");
             }
 
             Set<String> pendingIds = new HashSet<>();
@@ -459,7 +467,7 @@ public class WlanUIController implements AutoCloseable {
             if (observedHeight >= 0) {
                 for (String pendingId : pendingIds) {
                     if (!observedPendingIds.contains(pendingId)) {
-                        addActivity("Mempool je primio transakciju", WlanTheme.compact(pendingId, 7), "info");
+                        addActivity("Mempool received a transaction", WlanTheme.compact(pendingId, 7), "info");
                     }
                 }
             }
@@ -480,20 +488,20 @@ public class WlanUIController implements AutoCloseable {
 
     public ActionResult login(String publicHash, String privateHash) {
         if (publicHash == null || publicHash.isBlank() || privateHash == null || privateHash.isBlank()) {
-            return ActionResult.fail("Unesi public i private login hash.");
+            return ActionResult.fail("Enter the public and private login hashes.");
         }
 
         if (!getPublicLoginHash().equals(publicHash.trim()) || !getPrivateLoginHash().equals(privateHash.trim())) {
-            addActivity("Login je odbijen", "Uneseni hashevi ne pripadaju lokalnom session walletu.", "danger");
-            return ActionResult.fail("Public ili private login hash nije ispravan.");
+            addActivity("Login rejected", "The entered hashes do not belong to the local session wallet.", "danger");
+            return ActionResult.fail("The public or private login hash is incorrect.");
         }
 
         synchronized (submitLock) {
             loggedIn = true;
         }
-        addActivity("Lokalni wallet je otključan", settings.alias + " sada može potpisivati WLAN transakcije.",
+        addActivity("Local wallet unlocked", settings.alias + " can now sign WLAN transactions.",
                 "success");
-        return ActionResult.ok("Login uspješan.", null);
+        return ActionResult.ok("Login successful.", null);
     }
 
     public void logout() {
@@ -501,24 +509,24 @@ public class WlanUIController implements AutoCloseable {
             loggedIn = false;
         }
         setAutoMode(false);
-        addActivity("Wallet je zaključan", "Monitoring mreže ostaje aktivan, a potpisivanje je ugašeno.", "warning");
+        addActivity("Wallet locked", "Network monitoring remains active while transaction signing is disabled.", "warning");
     }
 
     public ActionResult sendTransaction(String receiverAddress, String amountText) {
         if (!loggedIn)
-            return ActionResult.fail("Prvo se prijavi u lokalni wallet.");
+            return ActionResult.fail("Log in to the local wallet first.");
         if (receiverAddress == null || receiverAddress.isBlank())
-            return ActionResult.fail("Receiver adresa nije unesena.");
+            return ActionResult.fail("Receiver address is required.");
 
         long amount;
         try {
             amount = Money.fromCoins(amountText);
         } catch (Exception e) {
-            return ActionResult.fail("Upiši valjan $MATH iznos s najviše 8 decimala.");
+            return ActionResult.fail("Enter a valid $MATH amount with no more than 8 decimal places.");
         }
 
         if (amount < ConsensusRules.MIN_TRANSACTION_AMOUNT) {
-            return ActionResult.fail("Iznos je manji od minimalno dopuštenog.");
+            return ActionResult.fail("The amount is below the allowed minimum.");
         }
 
         return submitUnits(receiverAddress.trim(), amount, false);
@@ -526,7 +534,7 @@ public class WlanUIController implements AutoCloseable {
 
     private ActionResult submitUnits(String receiverAddress, long amount, boolean automatic) {
         if (shuttingDown.get())
-            return ActionResult.fail("Node se gasi.");
+            return ActionResult.fail("The node is shutting down.");
 
         try {
             Transactions transaction;
@@ -534,60 +542,60 @@ public class WlanUIController implements AutoCloseable {
 
             synchronized (submitLock) {
                 if (!loggedIn)
-                    return ActionResult.fail("Lokalni wallet je zaključan.");
+                    return ActionResult.fail("The local wallet is locked.");
                 transaction = networkNode.createTransaction(localWallet, receiverAddress, amount);
                 accepted = networkNode.submitTransaction(transaction);
             }
 
             if (!accepted) {
                 if (!automatic)
-                    addActivity("Transakcija je odbijena", receiverAddress + " nije prošao lokalna consensus pravila.",
+                    addActivity("Transaction rejected", receiverAddress + " did not pass local consensus rules.",
                             "danger");
                 return ActionResult.fail(settings.nodeType == Computer.NodeType.LIGHT
-                        ? "LIGHT nema spojeni FULL/MINER node ili wallet state treba ponovno sinkronizirati."
-                        : "Blockchain nije prihvatio transakciju.");
+                        ? "The LIGHT node has no connected FULL/MINER peer, or its wallet state needs to synchronize again."
+                        : "The blockchain did not accept the transaction.");
             }
 
-            addActivity(automatic ? "Auto mode je poslao transakciju" : "Transakcija je broadcastana",
+            addActivity(automatic ? "Auto Mode sent a transaction" : "Transaction broadcast",
                     settings.alias + " → " + WlanTheme.compact(receiverAddress, 7) + " · " + Money.format(amount)
                             + " $MATH",
                     "info");
             return ActionResult.ok(settings.nodeType == Computer.NodeType.LIGHT
-                    ? "Transakcija je potpisana i poslana. Čeka potvrdu Merkle proofom."
-                    : "Transakcija je dodana u mempool i poslana peerovima.", transaction.getHash());
+                    ? "The transaction was signed and sent. It is waiting for Merkle proof confirmation."
+                    : "The transaction was added to the mempool and sent to peers.", transaction.getHash());
         } catch (Exception e) {
             if (!automatic)
-                addActivity("Slanje nije uspjelo", safeMessage(e), "danger");
+                addActivity("Send failed", safeMessage(e), "danger");
             return ActionResult.fail(safeMessage(e));
         }
     }
 
     public ActionResult connectManually(String ipAddress, String portText) {
         if (ipAddress == null || ipAddress.isBlank())
-            return ActionResult.fail("IP adresa nije unesena.");
+            return ActionResult.fail("IP address is required.");
 
         int port;
         try {
             port = Integer.parseInt(portText.trim());
         } catch (Exception e) {
-            return ActionResult.fail("Port mora biti cijeli broj.");
+            return ActionResult.fail("Port must be a whole number.");
         }
 
         if (port < 1 || port > 65535)
-            return ActionResult.fail("Port mora biti između 1 i 65535.");
+            return ActionResult.fail("Port must be between 1 and 65535.");
         networkNode.maintainConnection(ipAddress.trim(), port);
-        addActivity("Ručni peer je dodan", ipAddress.trim() + ":" + port + " je predan reconnect workeru.", "info");
-        return ActionResult.ok("Pokušaj povezivanja je pokrenut.", null);
+        addActivity("Manual peer added", ipAddress.trim() + ":" + port + " was passed to the reconnect worker.", "info");
+        return ActionResult.ok("Connection attempt started.", null);
     }
 
     public ActionResult setAutoMode(boolean enabled) {
         synchronized (autoModeLock) {
             if (enabled && !loggedIn)
-                return ActionResult.fail("Login je potreban za Auto Mode.");
+                return ActionResult.fail("Login is required for Auto Mode.");
             if (shuttingDown.get())
-                return ActionResult.fail("Node se gasi.");
+                return ActionResult.fail("The node is shutting down.");
             if (autoModeEnabled == enabled)
-                return ActionResult.ok("Auto Mode je već " + (enabled ? "uključen." : "isključen."), null);
+                return ActionResult.ok("Auto Mode is already " + (enabled ? "enabled." : "disabled."), null);
 
             autoModeEnabled = enabled;
             int generation = ++autoModeGeneration;
@@ -601,16 +609,16 @@ public class WlanUIController implements AutoCloseable {
                             TimeUnit.MILLISECONDS);
                 } catch (RejectedExecutionException e) {
                     autoModeEnabled = false;
-                    return ActionResult.fail("Auto Mode worker nije dostupan.");
+                    return ActionResult.fail("The Auto Mode worker is unavailable.");
                 }
             }
         }
 
-        addActivity(enabled ? "Auto Mode je uključen" : "Auto Mode je isključen",
-                enabled ? "Samo ovaj lokalni node nasumično stvara i broadcasta transakcije."
-                        : "Lokalni generator prometa je zaustavljen.",
+        addActivity(enabled ? "Auto Mode enabled" : "Auto Mode disabled",
+                enabled ? "Only this local node creates and broadcasts random transactions."
+                        : "The local traffic generator has stopped.",
                 enabled ? "success" : "warning");
-        return ActionResult.ok("Auto Mode je " + (enabled ? "uključen." : "isključen."), null);
+        return ActionResult.ok("Auto Mode is " + (enabled ? "enabled." : "disabled."), null);
     }
 
     private void runAutoMode(int generation) {
@@ -643,8 +651,8 @@ public class WlanUIController implements AutoCloseable {
             long now = System.currentTimeMillis();
             if (now - lastAutoWaitingMessage > 8000L) {
                 lastAutoWaitingMessage = now;
-                addActivity("Auto Mode čeka peer wallet",
-                        "Poveži barem još jedan node kako bi generator dobio receiver adresu.", "warning");
+                addActivity("Auto Mode is waiting for a peer wallet",
+                        "Connect at least one more node so the generator has a receiver address.", "warning");
             }
             return;
         }
@@ -655,8 +663,8 @@ public class WlanUIController implements AutoCloseable {
         if (intentionallyInvalid) {
             ActionResult result = submitUnits(receiver, ConsensusRules.MIN_TRANSACTION_AMOUNT - 1L, true);
             rejectedAutomaticTransactions.incrementAndGet();
-            addActivity("Auto Mode · test odbijen",
-                    "Namjerno premalen iznos nije prošao local consensus" + (result.success ? " (neočekivano)." : "."),
+            addActivity("Auto Mode · test rejected",
+                    "An intentionally tiny amount did not pass local consensus" + (result.success ? " (unexpected)." : "."),
                     "danger");
             return;
         }
@@ -725,29 +733,29 @@ public class WlanUIController implements AutoCloseable {
         boolean valid = lightNode
                 ? networkNode.isLightHeaderChainValid()
                 : blockchain.isChainValid();
-        addActivity(valid ? "Chain validation je prošao" : "Chain validation nije prošao",
+        addActivity(valid ? "Chain validation passed" : "Chain validation failed",
                 valid ? lightNode
-                        ? "Svi LIGHT header hashevi, PoW i previous hash veze su konzistentni."
-                        : "Svi block hashevi, PoW, transakcije, balancei i nonceovi su konzistentni."
-                        : "Lokalni blockchain je prijavio problem.",
+                        ? "All LIGHT header hashes, PoW values and previous-hash links are consistent."
+                        : "All block hashes, PoW values, transactions, balances and nonces are consistent."
+                        : "The local blockchain reported a problem.",
                 valid ? "success" : "danger");
         return valid;
     }
 
     public ActionResult requestMerkleProof(String blockHash, String transactionId) {
         if (settings.nodeType != Computer.NodeType.LIGHT)
-            return ActionResult.fail("Merkle proof se traži s LIGHT nodea.");
+            return ActionResult.fail("Merkle proofs can only be requested from a LIGHT node.");
         if (blockHash == null || blockHash.isBlank() || transactionId == null || transactionId.isBlank())
-            return ActionResult.fail("Odaberi block i unesi transaction ID.");
+            return ActionResult.fail("Select a block and enter a transaction ID.");
 
         boolean sent = networkNode.requestMerkleProof(blockHash.trim(), transactionId.trim());
         if (!sent)
-            return ActionResult.fail("Nema spojenog FULL ili MINER nodea za Merkle proof.");
+            return ActionResult.fail("No connected FULL or MINER node is available for a Merkle proof.");
 
-        addActivity("Merkle proof je zatražen",
+        addActivity("Merkle proof requested",
                 "Block " + WlanTheme.compact(blockHash, 7) + " · TX " + WlanTheme.compact(transactionId, 7),
                 "info");
-        return ActionResult.ok("Merkle proof zahtjev je poslan.", transactionId.trim());
+        return ActionResult.ok("Merkle proof request sent.", transactionId.trim());
     }
 
     public void addActivity(String title, String detail, String tone) {
@@ -758,7 +766,7 @@ public class WlanUIController implements AutoCloseable {
 
     private String safeMessage(Exception exception) {
         if (exception == null || exception.getMessage() == null || exception.getMessage().isBlank())
-            return "Nepoznata greška.";
+            return "Unknown error.";
         return exception.getMessage();
     }
 
@@ -799,7 +807,7 @@ public class WlanUIController implements AutoCloseable {
             networkNode.close();
         } catch (IOException e) {
             System.out.println(
-                    "WLAN node se nije potpuno zatvorio: "
+                    "The WLAN node did not close cleanly: "
                             + e.getMessage());
         }
 
@@ -835,7 +843,7 @@ public class WlanUIController implements AutoCloseable {
 
         } catch (Exception e) {
             System.out.println(
-                    "Završno spremanje blockchaina nije uspjelo: "
+                    "Final blockchain save failed: "
                             + e.getMessage());
         }
 
@@ -843,7 +851,7 @@ public class WlanUIController implements AutoCloseable {
             databaseManager.close();
         } catch (Exception e) {
             System.out.println(
-                    "SQLite baza se nije potpuno zatvorila: "
+                    "The SQLite database did not close cleanly: "
                             + e.getMessage());
         }
     }
@@ -873,13 +881,13 @@ public class WlanUIController implements AutoCloseable {
 
         private void validate() {
             if (nodeId.isBlank())
-                throw new IllegalArgumentException("Node ID nije unesen.");
+                throw new IllegalArgumentException("Node ID is required.");
             if (nodeType == null)
-                throw new IllegalArgumentException("Node type nije odabran.");
+                throw new IllegalArgumentException("Node type is required.");
             if (listenPort < 1 || listenPort > 65535)
-                throw new IllegalArgumentException("Listen port nije valjan.");
+                throw new IllegalArgumentException("Listen port is invalid.");
             if (!manualPeerIp.isBlank() && (manualPeerPort < 1 || manualPeerPort > 65535)) {
-                throw new IllegalArgumentException("Manual peer port nije valjan.");
+                throw new IllegalArgumentException("Manual peer port is invalid.");
             }
         }
     }
@@ -911,6 +919,7 @@ public class WlanUIController implements AutoCloseable {
         public final int listenPort;
         public final String localAddress;
         public final long localBalance;
+        public final boolean lightAccountStateSynchronized;
         public final boolean loggedIn;
         public final boolean autoMode;
         public final int autoSent;
@@ -933,7 +942,7 @@ public class WlanUIController implements AutoCloseable {
         public final boolean shuttingDown;
 
         private Snapshot(String nodeId, String alias, Computer.NodeType nodeType, int listenPort, String localAddress,
-                long localBalance,
+                long localBalance, boolean lightAccountStateSynchronized,
                 boolean loggedIn, boolean autoMode, int autoSent, int autoRejected, int peerCount, int chainHeight,
                 String tipHash,
                 int difficulty, BigInteger cumulativeWork, int mempoolSize, boolean mining, int localBlocksMined,
@@ -946,6 +955,7 @@ public class WlanUIController implements AutoCloseable {
             this.listenPort = listenPort;
             this.localAddress = localAddress;
             this.localBalance = localBalance;
+            this.lightAccountStateSynchronized = lightAccountStateSynchronized;
             this.loggedIn = loggedIn;
             this.autoMode = autoMode;
             this.autoSent = autoSent;

@@ -21,6 +21,9 @@ import WLAN.GetMerkleProofPayload;
 import WLAN.MerkleProofPayload;
 import WLAN.GetAccountStatePayload;
 import WLAN.AccountStatePayload;
+import WLAN.GetPeersPayload;
+import WLAN.PeerPayload;
+import WLAN.PeersPayload;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -49,6 +52,7 @@ public class NetworkNode implements AutoCloseable {
 
     private final Map<String, PeerConnection> activePeers = new ConcurrentHashMap<>();
     private final Map<String, Computer.NodeType> peerNodeTypes = new ConcurrentHashMap<>();
+    private final Map<String, KnownPeer> knownPeers = new ConcurrentHashMap<>();
     private final Set<String> maintainedPeerAddresses = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> fullChainRequests = new ConcurrentHashMap<>();
     private final Map<String, Long> headerRequests = new ConcurrentHashMap<>();
@@ -290,6 +294,7 @@ public class NetworkNode implements AutoCloseable {
             peerNodeTypes.put(
                     peerNodeId,
                     Computer.NodeType.valueOf(peerInfo.getNodeType()));
+            rememberPeer(peerNodeId,ipAddress,peerInfo.getListenPort(),peerInfo.getNodeType());
             savePeerToDatabase(peerNodeId,ipAddress,peerInfo.getListenPort(),peerInfo.getNodeType());
             System.out.println("HELLO handshake uspješan puff");
             System.out.println("Spojen node: " + peerNodeId);
@@ -299,6 +304,8 @@ public class NetworkNode implements AutoCloseable {
             sendCurrentState(connection,peerNodeType); // ovo je outbound dio jer naš node šalje konekciju da se spoji na njega
             requestAccountState(connection,peerNodeId);
             requestChainIfPeerStronger(connection, peerInfo, peerNodeId); // isto outbound
+            requestPeers(connection);
+            announceKnownPeers();
             startPeerListener(connection, peerNodeId);
 
         } catch (Exception e) {
@@ -385,6 +392,7 @@ public class NetworkNode implements AutoCloseable {
             peerNodeTypes.put(
                     peerNodeId,
                     Computer.NodeType.valueOf(peerInfo.getNodeType()));
+            rememberPeer(peerNodeId,connection.getRemoteAddress(),peerInfo.getListenPort(),peerInfo.getNodeType());
             savePeerToDatabase(peerNodeId,connection.getRemoteAddress(),peerInfo.getListenPort(),peerInfo.getNodeType());
             System.out.println("Prihvaćen node: " + peerNodeId);
             System.out.println("Node type: " + peerInfo.getNodeType());
@@ -393,6 +401,8 @@ public class NetworkNode implements AutoCloseable {
             sendCurrentState(connection,peerNodeType); // ovo je inbound dio jer čeka da se netko spoji na naš node
             requestAccountState(connection,peerNodeId);
             requestChainIfPeerStronger(connection, peerInfo, peerNodeId);
+            requestPeers(connection);
+            announceKnownPeers();
             listenForMessages(connection, peerNodeId);
 
         } catch (SocketException e) {
@@ -487,6 +497,10 @@ public class NetworkNode implements AutoCloseable {
                 handleGetAccountState(connection,message);
             } else if (message.getType() == MessageType.ACCOUNT_STATE) {
                 handleAccountState(message,peerNodeId);
+            } else if (message.getType() == MessageType.GET_PEERS) {
+                handleGetPeers(connection,message);
+            } else if (message.getType() == MessageType.PEERS) {
+                handlePeers(message);
             } else if (message.getType() == MessageType.REJECT) {
                 RejectPayload rejectPayload = MessageCodec.payloadAsPayloadTypeIWant(
                         message,
@@ -1192,6 +1206,19 @@ public class NetworkNode implements AutoCloseable {
             return;
         }
 
+        BlockChain_LightNodes.BlockHeader latestHeader = lightBlockchain.getLastHeader();
+
+        if (latestHeader == null
+                || latestHeader.height != payload.getBlockHeight()
+                || !latestHeader.blockHash.equals(payload.getBlockHash())) {
+
+            System.out.println(
+                    "LIGHT node je odbio zastarjeli account state od: "
+                            + peerNodeId);
+            requestAccountState(peerNodeId);
+            return;
+        }
+
         lightAccountState = new LightAccountState(
                 payload.getAddress(),
                 payload.getSpendableBalance(),
@@ -1465,7 +1492,7 @@ public class NetworkNode implements AutoCloseable {
         lightWalletAddress = address;
         BlockChain.TransactionAccountState accountState = blockchain.getTransactionAccountState(address);
 
-        if (accountState != null) {
+        if (accountState != null && lightBlockchain.getLastHeader().height == 0) {
             BlockChain_LightNodes.BlockHeader header = lightBlockchain.getLastHeader();
             lightAccountState = new LightAccountState(
                     address,
@@ -1832,6 +1859,132 @@ public class NetworkNode implements AutoCloseable {
         }
     }
 
+    private void requestPeers(PeerConnection connection) throws IOException {
+
+        NetworkMessage request = MessageCodec.createMessage(
+                MessageType.GET_PEERS,
+                nodeId,
+                null,
+                new GetPeersPayload(64));
+
+        connection.send(request);
+    }
+
+    private void handleGetPeers(
+            PeerConnection connection,
+            NetworkMessage message) throws IOException {
+
+        GetPeersPayload request = MessageCodec.payloadAsPayloadTypeIWant(
+                message,
+                GetPeersPayload.class);
+
+        int maxPeers = Math.max(1,Math.min(64,request.getMaxPeers()));
+
+        NetworkMessage response = MessageCodec.createMessage(
+                MessageType.PEERS,
+                nodeId,
+                message.getMessageId(),
+                createPeersPayload(message.getSenderNodeId(),maxPeers));
+
+        connection.send(response);
+    }
+
+    private void handlePeers(NetworkMessage message) {
+
+        PeersPayload payload = MessageCodec.payloadAsPayloadTypeIWant(
+                message,
+                PeersPayload.class);
+
+        if (payload.getPeers() == null) {
+            return;
+        }
+
+        for (PeerPayload peer : payload.getPeers()) {
+            if (peer == null
+                    || peer.getNodeId() == null
+                    || peer.getNodeId().isBlank()
+                    || nodeId.equals(peer.getNodeId())
+                    || peer.getIpAddress() == null
+                    || peer.getIpAddress().isBlank()
+                    || peer.getListenPort() < 1
+                    || peer.getListenPort() > 65535
+                    || !isKnownNodeType(peer.getNodeType())) {
+
+                continue;
+            }
+
+            knownPeers.putIfAbsent(
+                    peer.getNodeId(),
+                    new KnownPeer(
+                            peer.getIpAddress(),
+                            peer.getListenPort(),
+                            peer.getNodeType()));
+
+            /*
+             * Isti dogovor kao kod UDP discoveryja: samo node s manjim ID-em
+             * otvara konekciju pa ne stvaramo dvije veze između istih nodeova.
+             */
+            if (nodeId.compareTo(peer.getNodeId()) < 0
+                    && !activePeers.containsKey(peer.getNodeId())) {
+
+                maintainConnection(peer.getIpAddress(),peer.getListenPort());
+            }
+        }
+    }
+
+    private PeersPayload createPeersPayload(String excludedPeerNodeId,int maxPeers) {
+
+        ArrayList<PeerPayload> peers = new ArrayList<>();
+
+        for (Map.Entry<String, KnownPeer> entry : knownPeers.entrySet()) {
+            if (entry.getKey().equals(excludedPeerNodeId)
+                    || !activePeers.containsKey(entry.getKey())) {
+                continue;
+            }
+
+            KnownPeer peer = entry.getValue();
+            peers.add(new PeerPayload(
+                    entry.getKey(),
+                    peer.host,
+                    peer.port,
+                    peer.nodeType));
+
+            if (peers.size() >= maxPeers) {
+                break;
+            }
+        }
+
+        return new PeersPayload(peers);
+    }
+
+    private void announceKnownPeers() {
+
+        for (Map.Entry<String, PeerConnection> peer : activePeers.entrySet()) {
+            try {
+                NetworkMessage message = MessageCodec.createMessage(
+                        MessageType.PEERS,
+                        nodeId,
+                        null,
+                        createPeersPayload(peer.getKey(),64));
+
+                peer.getValue().send(message);
+            } catch (IOException e) {
+                System.out.println("Popis poznatih peerova nije poslan nodeu: " + peer.getKey());
+            }
+        }
+    }
+
+    private void rememberPeer(
+            String peerNodeId,
+            String host,
+            int port,
+            String peerNodeType) {
+
+        knownPeers.put(
+                peerNodeId,
+                new KnownPeer(host,port,peerNodeType));
+    }
+
     public void maintainConnection(String ipAddress, int port) {
         String peerAdress = ipAddress + ":" + port;
 
@@ -1843,7 +1996,7 @@ public class NetworkNode implements AutoCloseable {
             try {
                 while (running) {
 
-                    if (!isConnectedTo(ipAddress)) {
+                    if (!isConnectedTo(ipAddress,port)) {
                         connectToPeer(ipAddress, port);
                     }
 
@@ -1863,10 +2016,14 @@ public class NetworkNode implements AutoCloseable {
         reconnectThread.start();
     }
 
-    private boolean isConnectedTo(String ipAddress) {
+    private boolean isConnectedTo(String ipAddress,int port) {
 
-        for (PeerConnection connection : activePeers.values()) {
-            if (connection.getRemoteAddress().equals(ipAddress)) {
+        for (String peerNodeId : activePeers.keySet()) {
+            KnownPeer peer = knownPeers.get(peerNodeId);
+
+            if (peer != null
+                    && peer.host.equals(ipAddress)
+                    && peer.port == port) {
                 return true;
             }
         }
@@ -2140,6 +2297,11 @@ public class NetworkNode implements AutoCloseable {
 
     public boolean requestAccountState() {
 
+        return requestAccountState(null);
+    }
+
+    private boolean requestAccountState(String excludedPeerNodeId) {
+
         if (nodeType != Computer.NodeType.LIGHT || lightWalletAddress == null) {
             return false;
         }
@@ -2147,7 +2309,8 @@ public class NetworkNode implements AutoCloseable {
         pendingAccountStateRequests.clear();
 
         for (Map.Entry<String, PeerConnection> peer : activePeers.entrySet()) {
-            if (peerNodeTypes.get(peer.getKey()) == Computer.NodeType.LIGHT) {
+            if (peer.getKey().equals(excludedPeerNodeId)
+                    || peerNodeTypes.get(peer.getKey()) == Computer.NodeType.LIGHT) {
                 continue;
             }
 
@@ -2157,6 +2320,21 @@ public class NetworkNode implements AutoCloseable {
         }
 
         return false;
+    }
+
+    public boolean isLightAccountStateSynchronized() {
+
+        if (nodeType != Computer.NodeType.LIGHT) {
+            return true;
+        }
+
+        LightAccountState accountState = lightAccountState;
+        BlockChain_LightNodes.BlockHeader latestHeader = lightBlockchain.getLastHeader();
+
+        return accountState != null
+                && latestHeader != null
+                && accountState.blockHeight == latestHeader.height
+                && accountState.blockHash.equals(latestHeader.blockHash);
     }
 
     private boolean requestAccountState(
@@ -2461,6 +2639,19 @@ public class NetworkNode implements AutoCloseable {
         }
     }
 
+    private static class KnownPeer {
+
+        private final String host;
+        private final int port;
+        private final String nodeType;
+
+        private KnownPeer(String host,int port,String nodeType) {
+            this.host = host;
+            this.port = port;
+            this.nodeType = nodeType;
+        }
+    }
+
     private static class PendingAccountStateRequest {
 
         private final String peerNodeId;
@@ -2570,6 +2761,7 @@ public class NetworkNode implements AutoCloseable {
 
         activePeers.clear();
         peerNodeTypes.clear();
+        knownPeers.clear();
         fullChainRequests.clear();
         headerRequests.clear();
         pendingMerkleProofRequests.clear();

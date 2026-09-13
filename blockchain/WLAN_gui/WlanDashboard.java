@@ -425,8 +425,8 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         content.add(listCard,BorderLayout.CENTER);
 
         WlanTheme.Card inspectorCard = card(new BorderLayout());
-        inspectorCard.setPreferredSize(new Dimension(425,0));
-        inspectorCard.add(sectionHeader("BLOCK INSPECTOR","Header and every transaction inside the selected block"),BorderLayout.NORTH);
+        inspectorCard.setPreferredSize(new Dimension(440,0));
+        inspectorCard.add(sectionHeader("BLOCK INSPECTOR","Selected block or verified LIGHT header details"),BorderLayout.NORTH);
         blockInspector = new JPanel();
         blockInspector.setOpaque(false);
         blockInspector.setBorder(new EmptyBorder(6,18,18,18));
@@ -867,6 +867,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         snapshot = next;
         updatingControls = true;
         boolean lightNode = next.nodeType == Computer.NodeType.LIGHT;
+        boolean walletStateReady = !lightNode || next.lightAccountStateSynchronized;
 
         headerNode.setText(WlanTheme.compact(next.nodeId,10) + "  ·  " + next.nodeType + "  ·  :" + next.listenPort);
         headerStatus.setText(next.peerCount == 0 ? "NO DIRECT PEERS" : "CONNECTED  " + next.peerCount);
@@ -880,15 +881,17 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
                 ? "Own pending · Merkle verified"
                 : next.mempoolSize == 0 ? "Waiting for traffic" : "Ready for mining");
         workMetric.update(WlanTheme.compact(next.cumulativeWork.toString(),8),(lightNode ? "Header work · difficulty " : "Difficulty ") + next.difficulty);
-        balanceValue.setText(Money.format(next.localBalance) + " $MATH");
+        balanceValue.setText(walletStateReady ? Money.format(next.localBalance) + " $MATH" : "SYNCING…");
 
         loginButton.setText(next.loggedIn ? "LOGOUT" : "LOGIN");
-        sendButton.setEnabled(next.loggedIn && !actionRunning.get());
-        receiverBox.setEnabled(next.loggedIn);
-        amountField.setEnabled(next.loggedIn);
-        autoToggle.setEnabled(next.loggedIn);
+        sendButton.setEnabled(next.loggedIn && walletStateReady && !actionRunning.get());
+        receiverBox.setEnabled(next.loggedIn && walletStateReady);
+        amountField.setEnabled(next.loggedIn && walletStateReady);
+        autoToggle.setEnabled(next.loggedIn && walletStateReady);
         autoToggle.setSelected(next.autoMode);
-        autoDescription.setText(next.loggedIn
+        autoDescription.setText(next.loggedIn && !walletStateReady
+                ? "Waiting for a current FULL/MINER wallet state"
+                : next.loggedIn
                 ? (next.autoMode ? next.autoSent + " sent · " + next.autoRejected + " rejected" : "Only this node will generate traffic")
                 : "Login required");
         if(validateButton != null) validateButton.setText(lightNode ? "VALIDATE HEADERS" : "VALIDATE CHAIN");
@@ -1016,14 +1019,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
                 String empty = snapshot.nodeType == Computer.NodeType.LIGHT
                         ? "Light node keeps the verified header. Individual transactions are verified through Merkle proofs."
                         : "This block contains no transactions.";
-                JTextArea message = new JTextArea(empty);
-                message.setEditable(false);
-                message.setLineWrap(true);
-                message.setWrapStyleWord(true);
-                message.setOpaque(false);
-                message.setForeground(WlanTheme.MUTED);
-                message.setFont(WlanTheme.font(Font.PLAIN,12));
-                message.setMaximumSize(new Dimension(Integer.MAX_VALUE,58));
+                JTextArea message = inspectorText(empty,58);
                 blockInspector.add(message);
             }
             if(snapshot.nodeType == Computer.NodeType.LIGHT) addMerkleProofControls(selected,proofInput);
@@ -1041,7 +1037,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
         blockInspector.add(Box.createVerticalStrut(15));
         blockInspector.add(WlanTheme.title("MERKLE PROOF",14));
         blockInspector.add(Box.createVerticalStrut(4));
-        blockInspector.add(WlanTheme.label("Verify one transaction without downloading the full block",12,WlanTheme.MUTED));
+        blockInspector.add(inspectorText("Verify one transaction without downloading the full block",38));
         blockInspector.add(Box.createVerticalStrut(11));
 
         proofTransactionField = new WlanTheme.RoundedTextField(previousInput == null ? "" : previousInput);
@@ -1133,22 +1129,34 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
     }
 
     private void addInspectorValue(JPanel panel,String label,String value) {
-        panel.add(WlanTheme.label(label,12,WlanTheme.MUTED));
-        JTextArea area = new JTextArea(value == null ? "—" : value);
+        JLabel valueLabel = WlanTheme.label(label,12,WlanTheme.MUTED);
+        valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(valueLabel);
         int rows = value != null && value.length() > 44 ? 2 : 1;
+        int height = rows == 2 ? 48 : 31;
+        JTextArea area = inspectorText(value == null ? "—" : value,height);
+        area.setWrapStyleWord(false);
+        area.setFont(new Font(Font.MONOSPACED,Font.PLAIN,12));
+        area.setForeground(WlanTheme.TEXT_SOFT);
+        area.setBorder(new EmptyBorder(3,0,10,0));
+        panel.add(area);
+    }
+
+    private JTextArea inspectorText(String value,int height) {
+        JTextArea area = new JTextArea(value == null ? "—" : value);
         area.setEditable(false);
         area.setLineWrap(true);
-        area.setWrapStyleWord(false);
+        area.setWrapStyleWord(true);
         area.setOpaque(false);
-        area.setForeground(WlanTheme.TEXT_SOFT);
+        area.setFocusable(false);
+        area.setForeground(WlanTheme.MUTED);
         area.setFont(WlanTheme.font(Font.PLAIN,12));
-        area.setRows(rows);
-        area.setBorder(new EmptyBorder(3,0,10,0));
-        int height = rows == 2 ? 48 : 31;
+        area.setAlignmentX(Component.LEFT_ALIGNMENT);
+        area.setCaretPosition(0);
         area.setMinimumSize(new Dimension(0,height));
-        area.setPreferredSize(new Dimension(area.getPreferredSize().width,height));
+        area.setPreferredSize(new Dimension(1,height));
         area.setMaximumSize(new Dimension(Integer.MAX_VALUE,height));
-        panel.add(area);
+        return area;
     }
 
     private void updateTransactions(List<WlanUIController.TransactionView> transactions) {
@@ -1211,7 +1219,7 @@ public class WlanDashboard extends WlanTheme.BackgroundPanel {
             if(snapshot != null && snapshot.nodeType == Computer.NodeType.LIGHT) {
                 walletInspector.add(WlanTheme.title("SPV WALLET",18));
                 walletInspector.add(Box.createVerticalStrut(8));
-                JTextArea message = new JTextArea("LIGHT node čuva headere i vlastite transakcije, a FULL/MINER node koristi za balance, nonce i Merkle proof.");
+                JTextArea message = new JTextArea("A LIGHT node stores headers and its own transactions, and uses a FULL/MINER node for balance, nonce and Merkle proofs.");
                 message.setEditable(false);
                 message.setLineWrap(true);
                 message.setWrapStyleWord(true);

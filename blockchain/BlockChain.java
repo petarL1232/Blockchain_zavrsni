@@ -1133,11 +1133,6 @@ public class BlockChain {
             return false;
         }
 
-        if (chain.size() != 1) {
-            System.out.println("Novi početni wallet se ne može dodati nakon genesis faze.");
-            return false;
-        }
-
         try {
             PublicKey decodedPublicKey = Cryptography.stringToPublicKey(publicKey);
             String calculatedAddress = Cryptography.generateAddress(decodedPublicKey);

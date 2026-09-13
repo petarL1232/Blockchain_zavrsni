@@ -91,6 +91,10 @@ public final class WlanTheme {
         scrollPane.getHorizontalScrollBar().setUnitIncrement(18);
         scrollPane.getVerticalScrollBar().setUI(new ThinScrollBarUI());
         scrollPane.getHorizontalScrollBar().setUI(new ThinScrollBarUI());
+        scrollPane.getVerticalScrollBar().setPreferredSize(new Dimension(10,0));
+        scrollPane.getHorizontalScrollBar().setPreferredSize(new Dimension(0,10));
+        scrollPane.getVerticalScrollBar().setOpaque(false);
+        scrollPane.getHorizontalScrollBar().setOpaque(false);
         return scrollPane;
     }
 
@@ -439,6 +443,20 @@ public final class WlanTheme {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
             g.setColor(thumbColor);
             g.fillRoundRect(bounds.x + 2,bounds.y + 2,Math.max(4,bounds.width - 4),Math.max(4,bounds.height - 4),10,10);
+            g.dispose();
+        }
+
+        @Override protected void paintTrack(Graphics graphics,JComponent component,Rectangle bounds) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(alpha(SURFACE_HIGH,55));
+
+            if(scrollbar.getOrientation() == Adjustable.VERTICAL) {
+                g.fillRoundRect(bounds.x + 3,bounds.y,Math.max(2,bounds.width - 6),bounds.height,8,8);
+            } else {
+                g.fillRoundRect(bounds.x,bounds.y + 3,bounds.width,Math.max(2,bounds.height - 6),8,8);
+            }
+
             g.dispose();
         }
     }

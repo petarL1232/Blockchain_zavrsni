@@ -46,9 +46,9 @@ public class WlanGUI_Main {
         private final JTextArea feedback = feedbackArea();
         private final WlanTheme.AccentButton startButton = new WlanTheme.AccentButton("START WLAN NODE  →",true);
         private final ButtonGroup typeGroup = new ButtonGroup();
-        private final NodeTypeButton fullButton = new NodeTypeButton("FULL","Čuva cijeli chain",Computer.NodeType.FULL);
-        private final NodeTypeButton minerButton = new NodeTypeButton("MINER","Kopa nove blokove",Computer.NodeType.MINER);
-        private final NodeTypeButton lightButton = new NodeTypeButton("LIGHT","SPV wallet + Merkle proof",Computer.NodeType.LIGHT);
+        private final NodeTypeButton fullButton = new NodeTypeButton("FULL","Full blockchain",Computer.NodeType.FULL);
+        private final NodeTypeButton minerButton = new NodeTypeButton("MINER","Mines blocks",Computer.NodeType.MINER);
+        private final NodeTypeButton lightButton = new NodeTypeButton("LIGHT","SPV + Merkle proofs",Computer.NodeType.LIGHT);
 
         private NodeLaunchPanel(JFrame frame,AtomicReference<WlanDashboard> dashboard) {
             super(new BorderLayout());
@@ -87,14 +87,14 @@ public class WlanGUI_Main {
             brandText.setLayout(new BoxLayout(brandText,BoxLayout.Y_AXIS));
             brandText.add(WlanTheme.title("MathosCoin",20));
             brandText.add(Box.createVerticalStrut(3));
-            JLabel network = WlanTheme.label("$MATH  /  WLAN MREŽA",13,WlanTheme.TEXT_SOFT);
+            JLabel network = WlanTheme.label("$MATH  /  WLAN NETWORK",13,WlanTheme.TEXT_SOFT);
             network.setFont(WlanTheme.font(Font.BOLD,13));
             brandText.add(network);
             brand.add(brandText,BorderLayout.CENTER);
             copy.add(brand);
             copy.add(Box.createVerticalStrut(24));
 
-            JLabel titleFirstLine = WlanTheme.title("Pokreni svoj",38);
+            JLabel titleFirstLine = WlanTheme.title("Run your",38);
             JLabel titleSecondLine = WlanTheme.title("blockchain node.",38);
             titleFirstLine.setAlignmentX(Component.LEFT_ALIGNMENT);
             titleSecondLine.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -104,7 +104,7 @@ public class WlanGUI_Main {
             copy.add(titleSecondLine);
             copy.add(Box.createVerticalStrut(18));
 
-            JTextArea detail = new JTextArea("Ovaj uređaj postaje ravnopravan čvor MathosCoin mreže: sluša peerove, pronalazi ih na lokalnoj mreži i sinkronizira zajednički blockchain.");
+            JTextArea detail = new JTextArea("This device becomes an equal MathosCoin network node: it accepts peers, discovers them on the local network and synchronizes the shared blockchain.");
             detail.setEditable(false);
             detail.setLineWrap(true);
             detail.setWrapStyleWord(true);
@@ -117,11 +117,11 @@ public class WlanGUI_Main {
             copy.add(detail);
             copy.add(Box.createVerticalStrut(34));
 
-            copy.add(feature("01","PEER DISCOVERY","Nodeovi se pronalaze preko UDP broadcasta."));
+            copy.add(feature("01","PEER DISCOVERY","Nodes discover each other through UDP broadcast."));
             copy.add(Box.createVerticalStrut(15));
-            copy.add(feature("02","LIVE CONSENSUS","Blokovi i transakcije putuju izravno među peerovima."));
+            copy.add(feature("02","LIVE CONSENSUS","Peer-to-peer blocks and transactions."));
             copy.add(Box.createVerticalStrut(15));
-            copy.add(feature("03","LOCAL CONTROL","Login i Auto Mode vrijede samo za ovaj node."));
+            copy.add(feature("03","LOCAL CONTROL","Login and Auto Mode apply only to this node."));
 
             card.add(copy,BorderLayout.NORTH);
 
@@ -163,11 +163,11 @@ public class WlanGUI_Main {
             JPanel form = new JPanel();
             form.setOpaque(false);
             form.setLayout(new BoxLayout(form,BoxLayout.Y_AXIS));
-            form.add(WlanTheme.label("NOVA LOKALNA SESIJA",12,WlanTheme.CYAN));
+            form.add(WlanTheme.label("NEW LOCAL SESSION",12,WlanTheme.CYAN));
             form.add(Box.createVerticalStrut(6));
-            form.add(WlanTheme.title("Pokreni WLAN node",27));
+            form.add(WlanTheme.title("Start a WLAN node",27));
             form.add(Box.createVerticalStrut(7));
-            form.add(WlanTheme.label("Odaberi identitet, ulogu i port ovoga uređaja.",14,WlanTheme.MUTED));
+            form.add(WlanTheme.label("Choose the node identity, role and port.",14,WlanTheme.MUTED));
             form.add(Box.createVerticalStrut(23));
 
             JPanel identity = new JPanel(new GridLayout(1,2,12,0));
@@ -245,7 +245,7 @@ public class WlanGUI_Main {
                 listenPort = Integer.parseInt(portField.getText().trim());
                 if(!peerIpField.getText().isBlank()) peerPort = Integer.parseInt(peerPortField.getText().trim());
             } catch(NumberFormatException exception) {
-                showFeedback("Port mora biti cijeli broj.",WlanTheme.DANGER);
+                showFeedback("Port must be a whole number.",WlanTheme.DANGER);
                 return;
             }
 
@@ -253,7 +253,7 @@ public class WlanGUI_Main {
                     nodeIdField.getText(),aliasField.getText(),nodeType,listenPort,peerIpField.getText(),peerPort);
             startButton.setEnabled(false);
             startButton.setText("STARTING…");
-            showFeedback("Otvaram socket i pokrećem discovery…",WlanTheme.CYAN);
+            showFeedback("Opening the socket and starting discovery…",WlanTheme.CYAN);
 
             Thread worker = new Thread(() -> {
                 try {
@@ -263,7 +263,7 @@ public class WlanGUI_Main {
                     SwingUtilities.invokeLater(() -> {
                         startButton.setEnabled(true);
                         startButton.setText("START WLAN NODE  →");
-                        showFeedback(exception.getMessage() == null ? "Node se nije mogao pokrenuti." : exception.getMessage(),WlanTheme.DANGER);
+                        showFeedback(exception.getMessage() == null ? "The node could not be started." : exception.getMessage(),WlanTheme.DANGER);
                     });
                 }
             },"mathos-wlan-bootstrap");
@@ -295,7 +295,7 @@ public class WlanGUI_Main {
         }
 
         private static JTextArea feedbackArea() {
-            JTextArea area = new JTextArea("Peer IP nije obavezan.\nUDP automatski traži peerove.");
+            JTextArea area = new JTextArea("Peer IP is optional.\nUDP discovers peers automatically.");
             area.setEditable(false);
             area.setFocusable(false);
             area.setOpaque(false);
